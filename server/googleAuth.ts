@@ -7,6 +7,7 @@ import { storage } from "./storage";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
   
   return session({
     secret: process.env.SESSION_SECRET || 'local-dev-secret-change-in-production',
@@ -14,7 +15,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // Allow http in local dev
+      secure: isProduction, // HTTPS in production
+      sameSite: isProduction ? 'none' : 'lax', // Required for cross-site in production
       maxAge: sessionTtl,
     },
   });

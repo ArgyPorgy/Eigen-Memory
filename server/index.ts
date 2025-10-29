@@ -60,32 +60,74 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+// Error handler
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  res.status(status).json({ message });
+  throw err;
+});
 
-    res.status(status).json({ message });
-    throw err;
-  });
+// Initialize app (async setup)
+let server: any = null;
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+async function initializeApp() {
+  if (isInitialized) return;
+  if (initPromise) {
+    await initPromise;
+    return;
   }
+  
+  initPromise = (async () => {
+    server = await registerRoutes(app);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, "0.0.0.0", () => {
-    log(`serving on port ${port}`);
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    isInitialized = true;
+
+    // Only listen on port if running locally (not on Vercel)
+    if (!process.env.VERCEL) {
+      // ALWAYS serve the app on the port specified in the environment variable PORT
+      // Other ports are firewalled. Default to 5000 if not specified.
+      // this serves both the API and the client.
+      // It is the only port that is not firewalled.
+      const port = parseInt(process.env.PORT || '5000', 10);
+      server.listen(port, "0.0.0.0", () => {
+        log(`serving on port ${port}`);
+      });
+    }
+  })();
+  
+  return initPromise;
+}
+
+// For Vercel, we need to ensure initialization happens
+// Add middleware to handle async initialization
+app.use(async (req, res, next) => {
+  if (!isInitialized && !initPromise) {
+    await initializeApp();
+  } else if (initPromise) {
+    await initPromise;
+  }
+  next();
+});
+
+// Start initialization immediately (for local dev)
+if (!process.env.VERCEL) {
+  initializeApp().catch(err => {
+    console.error("Failed to initialize app:", err);
   });
-})();
+}
+
+// Export for Vercel serverless function
+export default app;
