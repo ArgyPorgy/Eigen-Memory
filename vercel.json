@@ -1,13 +1,8 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/public",
   "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public"
-      }
-    },
     {
       "src": "server/index.ts",
       "use": "@vercel/node"
@@ -17,10 +12,12 @@
     {
       "src": "/api/(.*)",
       "dest": "server/index.ts"
-    },
+    }
+  ],
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
