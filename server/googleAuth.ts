@@ -30,9 +30,11 @@ export async function setupAuth(app: Express) {
 
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+  // Ensure BASE_URL doesn't have trailing slash to avoid double slashes
+  const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, '');
   
-  console.log("🔧 Google OAuth Callback URL:", `${BASE_URL}/api/auth/google/callback`);
+  const callbackURL = `${BASE_URL}/api/auth/google/callback`;
+  console.log("🔧 Google OAuth Callback URL:", callbackURL);
 
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
     console.warn("⚠️  Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env");
@@ -84,7 +86,7 @@ export async function setupAuth(app: Express) {
     {
       clientID: GOOGLE_CLIENT_ID,
       clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: `${BASE_URL}/api/auth/google/callback`,
+      callbackURL: callbackURL,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {

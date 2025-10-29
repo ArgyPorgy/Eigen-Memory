@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: unmatched-memory-game
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: unmatched-memory-game
+          property: port
+    healthCheckPath: /
+
