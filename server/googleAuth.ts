@@ -7,7 +7,7 @@ import { storage } from "./storage";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+  const isProduction = !!(process.env.NODE_ENV === 'production' || process.env.VERCEL);
   
   return session({
     secret: process.env.SESSION_SECRET || 'local-dev-secret-change-in-production',
@@ -15,8 +15,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: isProduction, // HTTPS in production
-      sameSite: isProduction ? 'none' : 'lax', // Required for cross-site in production
+      secure: isProduction as boolean, // HTTPS in production
+      sameSite: isProduction ? ('none' as const) : ('lax' as const), // Required for cross-site in production
       maxAge: sessionTtl,
     },
   });
@@ -58,7 +58,7 @@ export async function setupAuth(app: Express) {
           profileImageUrl: null,
         } as Express.User);
       } catch (error) {
-        cb(error, null);
+        cb(error as Error, undefined);
       }
     });
     
@@ -90,7 +90,7 @@ export async function setupAuth(app: Express) {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
-          return done(new Error("No email found in Google profile"), null);
+          return done(new Error("No email found in Google profile"), undefined);
         }
 
         // Get or create user
@@ -119,7 +119,7 @@ export async function setupAuth(app: Express) {
         return done(null, user);
       } catch (error) {
         console.error("Error in Google strategy:", error);
-        return done(error, null);
+        return done(error as Error, undefined);
       }
     }
   ));
@@ -134,11 +134,11 @@ export async function setupAuth(app: Express) {
       // Fetch fresh user data from database
       const user = await storage.getUser(id);
       if (!user) {
-        return cb(new Error("User not found"), null);
+        return cb(new Error("User not found"), undefined);
       }
       cb(null, user);
     } catch (error) {
-      cb(error, null);
+      cb(error as Error, undefined);
     }
   });
 
