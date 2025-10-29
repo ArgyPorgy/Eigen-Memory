@@ -82,52 +82,64 @@ async function initializeApp() {
   }
   
   initPromise = (async () => {
-    server = await registerRoutes(app);
+    try {
+      server = await registerRoutes(app);
 
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
+      // importantly only setup vite in development and after
+      // setting up all the other routes so the catch-all route
+      // doesn't interfere with the other routes
+      if (app.get("env") === "development") {
+        await setupVite(app, server);
+      } else {
+        serveStatic(app);
+      }
 
-    isInitialized = true;
+      isInitialized = true;
+      console.log("✅ App initialized - routes registered");
 
-    // Only listen on port if running locally (not on Vercel)
-    if (!process.env.VERCEL) {
-      // ALWAYS serve the app on the port specified in the environment variable PORT
-      // Other ports are firewalled. Default to 5000 if not specified.
-      // this serves both the API and the client.
-      // It is the only port that is not firewalled.
-      const port = parseInt(process.env.PORT || '5000', 10);
-      server.listen(port, "0.0.0.0", () => {
-        log(`serving on port ${port}`);
-      });
+      // Only listen on port if running locally (not on Vercel)
+      if (!process.env.VERCEL) {
+        // ALWAYS serve the app on the port specified in the environment variable PORT
+        // Other ports are firewalled. Default to 5000 if not specified.
+        // this serves both the API and the client.
+        // It is the only port that is not firewalled.
+        const port = parseInt(process.env.PORT || '5000', 10);
+        server.listen(port, "0.0.0.0", () => {
+          log(`serving on port ${port}`);
+        });
+      }
+    } catch (error) {
+      console.error("❌ Failed to initialize app:", error);
+      throw error;
     }
   })();
   
   return initPromise;
 }
 
-// For Vercel, we need to ensure initialization happens
-// Add middleware to handle async initialization
+// For Vercel, we need to ensure initialization happens before any route
+// Add middleware to handle async initialization - MUST be first
 app.use(async (req, res, next) => {
-  if (!isInitialized && !initPromise) {
-    await initializeApp();
-  } else if (initPromise) {
-    await initPromise;
+  try {
+    if (!isInitialized) {
+      if (!initPromise) {
+        await initializeApp();
+      } else {
+        await initPromise;
+      }
+    }
+    next();
+  } catch (error) {
+    console.error("Initialization error:", error);
+    res.status(500).json({ message: "Server initialization failed" });
   }
-  next();
 });
 
-// Start initialization immediately (for local dev)
-if (!process.env.VERCEL) {
-  initializeApp().catch(err => {
-    console.error("Failed to initialize app:", err);
-  });
-}
+// Start initialization immediately (both local dev and Vercel need routes registered)
+// This ensures routes are ready as soon as possible
+initializeApp().catch(err => {
+  console.error("Failed to initialize app:", err);
+});
 
 // Export for Vercel serverless function
 export default app;
