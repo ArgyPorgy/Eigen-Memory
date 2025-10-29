@@ -7,10 +7,17 @@ import { storage } from "./storage";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const isProduction = !!(process.env.NODE_ENV === 'production' || process.env.VERCEL);
+  const isProduction = !!(process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RENDER);
+  
+  // Validate session secret in production
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (isProduction && (!sessionSecret || sessionSecret === 'local-dev-secret-change-in-production')) {
+    console.error('❌ SECURITY WARNING: SESSION_SECRET must be set to a strong random value in production!');
+  }
   
   return session({
-    secret: process.env.SESSION_SECRET || 'local-dev-secret-change-in-production',
+    secret: sessionSecret || 'local-dev-secret-change-in-production',
+    name: 'sessionId', // Custom session name (not default 'connect.sid')
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -18,6 +25,7 @@ export function getSession() {
       secure: isProduction as boolean, // HTTPS in production
       sameSite: isProduction ? ('none' as const) : ('lax' as const), // Required for cross-site in production
       maxAge: sessionTtl,
+      domain: undefined, // Don't set domain for security
     },
   });
 }

@@ -1,12 +1,50 @@
 // API routes
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./googleAuth";
 import { insertGameSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
+// Simple rate limiting (in-memory, for production consider Redis)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 100; // requests per window
+
+function rateLimitMiddleware(req: Request, res: Response, next: () => void) {
+  const key = req.ip || 'unknown';
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  // Clean up expired entries (simple cleanup, not perfect but works)
+  if (rateLimitMap.size > 10000) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (v.resetTime < now) {
+        rateLimitMap.delete(k);
+      }
+    }
+  }
+
+  if (!record || record.resetTime < now) {
+    // New window
+    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    next();
+  } else if (record.count >= RATE_LIMIT_MAX) {
+    // Rate limit exceeded
+    res.status(429).json({ 
+      message: 'Too many requests. Please try again later.' 
+    });
+  } else {
+    // Increment counter
+    record.count++;
+    next();
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Rate limiting for all API routes
+  app.use('/api', rateLimitMiddleware);
+  
   // Auth middleware setup
   await setupAuth(app);
 
