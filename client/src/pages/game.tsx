@@ -6,41 +6,48 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Navigation } from "@/components/Navigation";
+import confetti from "canvas-confetti";
 import { 
-  Trophy, 
   RotateCcw, 
   User, 
   LogOut, 
-  Award,
-  Gamepad2,
+  Clock,
   Target,
-  Palette,
-  Music,
-  Star,
-  Heart,
   Zap,
-  Crown,
 } from "lucide-react";
-import { Link } from "wouter";
 import type { InsertGame } from "@shared/schema";
 import type { LucideIcon } from "lucide-react";
 
-// Tile symbols - using lucide icons for design compliance
-const SYMBOLS: LucideIcon[] = [
-  Gamepad2,
-  Target,
-  Palette,
-  Music,
-  Star,
-  Heart,
-  Zap,
-  Crown,
+// Tile symbols - using all custom SVGs
+type SymbolType = {
+  type: 'image';
+  image: string;
+};
+
+// All available SVG images
+const SVG_FILES = [
+  '/eigenn.svg',
+  '/Cloud.svg',
+  '/nader.svg',
+  '/pengu.svg',
+  '/Slashing.svg',
+  '/sreeram.svg',
+  '/Tribal tomb.svg',
+  '/abstract-robot.svg',
 ];
+
+// Create 8 pairs by using all 8 SVGs
+const SYMBOLS: SymbolType[] = SVG_FILES.map(image => ({ type: 'image' as const, image }));
 
 type Tile = {
   id: number;
   symbolIndex: number; // Stable index for comparison
-  symbol: LucideIcon;
+  symbol: SymbolType;
   isFlipped: boolean;
   isMatched: boolean;
 };
@@ -81,7 +88,7 @@ export default function Game() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/api/auth/google";
         }, 500);
         return;
       }
@@ -123,10 +130,28 @@ export default function Game() {
     setIsGameWon(false);
   }, []);
 
-  // Start game on mount
+  // Initialize game on mount (but don't auto-start)
   useEffect(() => {
-    initializeGame();
-  }, [initializeGame]);
+    // Create pairs of tiles with stable indices
+    const symbolPairs = [
+      ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
+      ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
+    ];
+    
+    // Shuffle using Fisher-Yates algorithm
+    const shuffled = symbolPairs
+      .map((item, id) => ({ ...item, id, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({
+        id: index,
+        symbolIndex: item.symbolIndex,
+        symbol: item.symbol,
+        isFlipped: false,
+        isMatched: false,
+      }));
+
+    setTiles(shuffled);
+  }, []);
 
   // Timer countdown
   useEffect(() => {
@@ -214,6 +239,38 @@ export default function Game() {
     const bonus = timeRemaining * 10;
     const totalPoints = finalScore + bonus;
 
+    // Trigger confetti burst effect
+    const duration = 3000;
+    const animationEnd = Date.now() + duration;
+
+    const interval = setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval);
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+      
+      // Left side burst
+      confetti({
+        particleCount: Math.floor(particleCount),
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'],
+      });
+      
+      // Right side burst
+      confetti({
+        particleCount: Math.floor(particleCount),
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'],
+      });
+    }, 250);
+
     // Save game result
     if (user) {
       saveGameMutation.mutate({
@@ -246,45 +303,37 @@ export default function Game() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-border p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {user?.profileImageUrl && (
-              <img
-                src={user.profileImageUrl}
-                alt="Profile"
-                className="w-10 h-10 rounded-full border-2 border-primary object-cover"
-                data-testid="img-user-avatar"
-              />
-            )}
-            <div>
-              <p className="text-sm text-muted-foreground">Playing as</p>
-              <p className="font-semibold" data-testid="text-username">
-                {user?.firstName || user?.email || "Player"}
-              </p>
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-10 w-10 border-2 border-primary">
+                <AvatarImage src={user?.profileImageUrl || undefined} alt="Profile" />
+                <AvatarFallback>
+                  <User className="h-5 w-5" />
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Playing as</p>
+                <p className="font-semibold" data-testid="text-username">
+                  {user?.firstName || user?.email || "Player"}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/leaderboard">
-              <Button variant="outline" data-testid="button-leaderboard">
-                <Trophy className="w-4 h-4 mr-2" />
-                Leaderboard
+            <div className="flex items-center gap-4">
+              <Navigation />
+              <Separator orientation="vertical" className="h-6" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.href = "/api/logout"}
+                data-testid="button-logout"
+                className="hover:text-red-500 hover:bg-red-500/10 transition-colors"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
-            </Link>
-            <Link href="/profile">
-              <Button variant="outline" data-testid="button-profile">
-                <User className="w-4 h-4 mr-2" />
-                Profile
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = "/api/logout"}
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -292,36 +341,82 @@ export default function Game() {
       {/* Main Game Area */}
       <main className="flex-1 p-6 flex flex-col items-center justify-center">
         <div className="max-w-4xl w-full space-y-8">
-          {/* Stats Panel */}
-          <div className="grid grid-cols-3 gap-6">
-            <Card className="p-6 text-center space-y-2" data-testid="card-timer">
-              <p className="text-sm uppercase tracking-wide text-muted-foreground">Time</p>
-              <p 
-                className={`text-4xl font-bold font-mono ${timeRemaining <= 30 ? 'text-destructive' : ''}`}
-                data-testid="text-time-remaining"
+          {/* Start Game Button */}
+          {!isGameActive && !isGameOver && !isGameWon && (
+            <Card className="p-8 text-center space-y-6 border-2 border-primary/20">
+              <div className="space-y-2">
+                <img src="/Variant7.svg" alt="Ready to Play" className="w-16 h-16 mx-auto" />
+                <h2 className="text-3xl font-bold">Ready to Play?</h2>
+                <p className="text-muted-foreground text-lg">Match all 8 pairs before time runs out!</p>
+              </div>
+              <Button
+                size="lg"
+                onClick={() => {
+                  setIsGameActive(true);
+                  setTimeRemaining(180);
+                }}
+                className="text-lg px-12 py-6 rounded-full"
+                data-testid="button-start"
               >
-                {formatTime(timeRemaining)}
-              </p>
+            
+                Start Game
+              </Button>
             </Card>
-            <Card className="p-6 text-center space-y-2" data-testid="card-score">
-              <p className="text-sm uppercase tracking-wide text-muted-foreground">Score</p>
-              <p className="text-4xl font-bold font-mono" data-testid="text-score">
-                {score}
-              </p>
-            </Card>
-            <Card className="p-6 text-center space-y-2" data-testid="card-matches">
-              <p className="text-sm uppercase tracking-wide text-muted-foreground">Matches</p>
-              <p className="text-4xl font-bold font-mono" data-testid="text-matches">
-                {matches}/8
-              </p>
-            </Card>
-          </div>
+          )}
+
+          {/* Stats Panel */}
+          {isGameActive && (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <Card className="p-6 text-center space-y-3" data-testid="card-timer">
+                  <div className="flex items-center justify-center gap-2">
+                    <Clock className={`w-5 h-5 ${timeRemaining <= 30 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`} />
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Time</p>
+                  </div>
+                  <p 
+                    className={`text-4xl font-bold font-mono ${timeRemaining <= 30 ? 'text-destructive' : ''}`}
+                    data-testid="text-time-remaining"
+                  >
+                    {formatTime(timeRemaining)}
+                  </p>
+                  <Progress 
+                    value={(timeRemaining / 180) * 100} 
+                    className="h-2"
+                  />
+                </Card>
+                <Card className="p-6 text-center space-y-3" data-testid="card-score">
+                  <div className="flex items-center justify-center gap-2">
+                    <img src="/score.svg" alt="Score" className="w-5 h-5" />
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
+                  </div>
+                  <p className="text-4xl font-bold font-mono text-primary" data-testid="text-score">
+                    {score}
+                  </p>
+                  <Badge variant="secondary" className="w-full justify-center">
+                    Potential: {potentialTotal}
+                  </Badge>
+                </Card>
+                <Card className="p-6 text-center space-y-3" data-testid="card-matches">
+                  <div className="flex items-center justify-center gap-2">
+                    <Target className="w-5 h-5 text-primary" />
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Matches</p>
+                  </div>
+                  <p className="text-4xl font-bold font-mono" data-testid="text-matches">
+                    {matches}/8
+                  </p>
+                  <Progress 
+                    value={(matches / 8) * 100} 
+                    className="h-2"
+                  />
+                </Card>
+              </div>
+            </>
+          )}
 
           {/* Game Board */}
           <Card className="p-8">
-            <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
+            <div className="grid grid-cols-4 gap-3 max-w-xl mx-auto">
               {tiles.map((tile, index) => {
-                const IconComponent = tile.symbol;
                 return (
                   <button
                     key={tile.id}
@@ -341,8 +436,10 @@ export default function Game() {
                     data-testid={`tile-${index}`}
                   >
                     {(tile.isFlipped || tile.isMatched) && (
-                      <IconComponent 
-                        className="w-12 h-12 text-primary"
+                      <img 
+                        src={tile.symbol.image}
+                        alt="Tile"
+                        className="w-24 h-24 md:w-28 md:h-28 object-contain"
                         style={{
                           transform: "rotateY(0deg)",
                         }}
@@ -356,21 +453,33 @@ export default function Game() {
 
           {/* Game Over / Won Messages */}
           {isGameWon && (
-            <Card className="p-8 text-center space-y-4 border-primary" data-testid="card-game-won">
-              <Award className="w-16 h-16 text-primary mx-auto" />
-              <h2 className="text-3xl font-bold">Congratulations!</h2>
+            <Card className="p-8 text-center space-y-6 border-2 border-primary bg-primary/5" data-testid="card-game-won">
               <div className="space-y-2">
-                <p className="text-xl">
-                  <span className="text-muted-foreground">Base Score:</span>{" "}
-                  <span className="font-bold">{score}</span>
-                </p>
-                <p className="text-xl">
-                  <span className="text-muted-foreground">Time Bonus:</span>{" "}
-                  <span className="font-bold">{potentialBonus}</span>
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  Total: {potentialTotal} points
-                </p>
+                <img src="/Achievement.svg" alt="Achievement" className="w-20 h-20 mx-auto animate-bounce" />
+                <h2 className="text-4xl font-bold">Congratulations!</h2>
+                <p className="text-muted-foreground text-lg">You matched all pairs!</p>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+                  <span className="text-muted-foreground">Base Score:</span>
+                  <Badge variant="secondary" className="text-lg px-4 py-2">
+                    {score}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+                  <span className="text-muted-foreground">Time Bonus:</span>
+                  <Badge variant="outline" className="text-lg px-4 py-2">
+                    +{potentialBonus}
+                  </Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg">
+                  <span className="text-lg font-semibold">Total Points:</span>
+                  <Badge variant="default" className="text-xl px-5 py-3">
+                    {potentialTotal}
+                  </Badge>
+                </div>
               </div>
               <Button
                 size="lg"
@@ -385,14 +494,27 @@ export default function Game() {
           )}
 
           {isGameOver && !isGameWon && (
-            <Card className="p-8 text-center space-y-4 border-destructive" data-testid="card-game-over">
-              <h2 className="text-3xl font-bold">Time's Up!</h2>
-              <p className="text-xl">
-                You found <span className="font-bold">{matches}</span> out of 8 pairs
-              </p>
-              <p className="text-muted-foreground">
-                Final Score: <span className="font-bold">{score}</span> points
-              </p>
+            <Card className="p-8 text-center space-y-6 border-2 border-destructive bg-destructive/5" data-testid="card-game-over">
+              <div className="space-y-2">
+                <Clock className="w-16 h-16 text-destructive mx-auto" />
+                <h2 className="text-4xl font-bold">Time's Up!</h2>
+                <p className="text-muted-foreground text-lg">Better luck next time!</p>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+                  <span className="text-muted-foreground">Matches Found:</span>
+                  <Badge variant="secondary" className="text-lg px-4 py-2">
+                    {matches}/8
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+                  <span className="text-muted-foreground">Final Score:</span>
+                  <Badge variant="outline" className="text-lg px-4 py-2">
+                    {score}
+                  </Badge>
+                </div>
+              </div>
               <Button
                 size="lg"
                 onClick={initializeGame}

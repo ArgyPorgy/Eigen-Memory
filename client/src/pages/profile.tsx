@@ -4,7 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Trophy, Target, BarChart3, Award } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Target, BarChart3, User } from "lucide-react";
 import { Link } from "wouter";
 import type { Game, UserStats } from "@shared/schema";
 
@@ -21,7 +25,7 @@ export default function Profile() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/api/auth/google";
       }, 500);
       return;
     }
@@ -56,7 +60,7 @@ export default function Profile() {
           </Link>
           <Link href="/leaderboard">
             <Button variant="outline" data-testid="button-leaderboard">
-              <Trophy className="w-4 h-4 mr-2" />
+              <img src="/Leaderboard.svg" alt="Leaderboard" className="w-4 h-4 mr-2" />
               Leaderboard
             </Button>
           </Link>
@@ -65,14 +69,12 @@ export default function Profile() {
         {/* Profile Header */}
         <Card className="p-8">
           <div className="flex items-center gap-6">
-            {user.profileImageUrl && (
-              <img
-                src={user.profileImageUrl}
-                alt="Profile"
-                className="w-24 h-24 rounded-full border-4 border-primary object-cover"
-                data-testid="img-profile-avatar"
-              />
-            )}
+            <Avatar className="h-24 w-24 border-4 border-primary">
+              <AvatarImage src={user.profileImageUrl || undefined} alt="Profile" />
+              <AvatarFallback className="text-2xl">
+                <User className="h-12 w-12" />
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1">
               <h1 className="text-4xl font-bold mb-2" data-testid="text-profile-name">
                 {user.firstName || user.email || "Player"}
@@ -90,55 +92,72 @@ export default function Profile() {
         {isLoading ? (
           <div className="grid md:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i} className="p-6">
-                <div className="animate-pulse space-y-3">
-                  <div className="h-8 w-8 bg-muted rounded" />
-                  <div className="h-4 bg-muted rounded w-20" />
-                  <div className="h-8 bg-muted rounded w-16" />
-                </div>
+              <Card key={i} className="p-6 space-y-3">
+                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-16" />
               </Card>
             ))}
           </div>
         ) : stats ? (
           <div className="grid md:grid-cols-4 gap-6">
-            <Card className="p-6 space-y-3" data-testid="card-stat-points">
-              <Trophy className="w-8 h-8 text-primary" />
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                Total Points
-              </p>
-              <p className="text-3xl font-bold font-mono" data-testid="text-total-points">
-                {stats.totalPoints.toLocaleString()}
-              </p>
+            <Card className="p-6 space-y-4 hover-elevate transition-all" data-testid="card-stat-points">
+              <div className="p-3 bg-primary/10 rounded-lg w-fit">
+                <img src="/score.svg" alt="Total Points" className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  Total Points
+                </p>
+                <p className="text-3xl font-bold font-mono" data-testid="text-total-points">
+                  {stats.totalPoints.toLocaleString()}
+                </p>
+              </div>
             </Card>
 
-            <Card className="p-6 space-y-3" data-testid="card-stat-games">
-              <Target className="w-8 h-8 text-primary" />
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                Games Played
-              </p>
-              <p className="text-3xl font-bold font-mono" data-testid="text-games-played">
-                {stats.gamesPlayed}
-              </p>
+            <Card className="p-6 space-y-4 hover-elevate transition-all" data-testid="card-stat-games">
+              <div className="p-3 bg-primary/10 rounded-lg w-fit">
+                <img src="/Variant7.svg" alt="Games Played" className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  Games Played
+                </p>
+                <p className="text-3xl font-bold font-mono" data-testid="text-games-played">
+                  {stats.gamesPlayed}
+                </p>
+              </div>
             </Card>
 
-            <Card className="p-6 space-y-3" data-testid="card-stat-average">
-              <BarChart3 className="w-8 h-8 text-primary" />
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                Average Score
-              </p>
-              <p className="text-3xl font-bold font-mono" data-testid="text-average-score">
-                {Math.round(stats.averageScore).toLocaleString()}
-              </p>
+            <Card className="p-6 space-y-4 hover-elevate transition-all" data-testid="card-stat-average">
+              <div className="p-3 bg-primary/10 rounded-lg w-fit">
+                <BarChart3 className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  Average Score
+                </p>
+                <p className="text-3xl font-bold font-mono" data-testid="text-average-score">
+                  {Math.round(stats.averageScore).toLocaleString()}
+                </p>
+              </div>
             </Card>
 
-            <Card className="p-6 space-y-3" data-testid="card-stat-best">
-              <Award className="w-8 h-8 text-primary" />
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                Best Score
-              </p>
-              <p className="text-3xl font-bold font-mono text-primary" data-testid="text-best-score">
-                {stats.bestScore.toLocaleString()}
-              </p>
+            <Card className="p-6 space-y-4 hover-elevate transition-all border-primary/20" data-testid="card-stat-best">
+              <div className="p-3 bg-primary/20 rounded-lg w-fit">
+                <img src="/Achievement.svg" alt="Best Score" className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  Best Score
+                </p>
+                <p className="text-3xl font-bold font-mono text-primary" data-testid="text-best-score">
+                  {stats.bestScore.toLocaleString()}
+                </p>
+                <Badge variant="secondary" className="mt-2">
+                  Personal Best
+                </Badge>
+              </div>
             </Card>
           </div>
         ) : (
@@ -154,16 +173,14 @@ export default function Profile() {
           </h2>
           <Card className="overflow-hidden">
             {isLoading ? (
-              <div className="p-8">
-                <div className="animate-pulse space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-12 bg-muted rounded" />
-                  ))}
-                </div>
+              <div className="p-8 space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
               </div>
             ) : !games || games.length === 0 ? (
               <div className="p-12 text-center" data-testid="empty-history">
-                <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <img src="/Leaderboard.svg" alt="No games" className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p className="text-muted-foreground">
                   No games played yet. Start playing to build your history!
                 </p>
@@ -173,19 +190,19 @@ export default function Profile() {
                 <table className="w-full">
                   <thead className="bg-muted/50">
                     <tr className="border-b border-border">
-                      <th className="text-left p-4 font-semibold">Date</th>
-                      <th className="text-right p-4 font-semibold">Score</th>
-                      <th className="text-right p-4 font-semibold">Bonus</th>
-                      <th className="text-right p-4 font-semibold">Total Points</th>
-                      <th className="text-right p-4 font-semibold">Time Left</th>
-                      <th className="text-right p-4 font-semibold">Matches</th>
+                      <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">Date</th>
+                      <th className="text-right p-4 font-semibold text-sm uppercase tracking-wide">Score</th>
+                      <th className="text-right p-4 font-semibold text-sm uppercase tracking-wide">Bonus</th>
+                      <th className="text-right p-4 font-semibold text-sm uppercase tracking-wide">Total</th>
+                      <th className="text-right p-4 font-semibold text-sm uppercase tracking-wide">Time Left</th>
+                      <th className="text-right p-4 font-semibold text-sm uppercase tracking-wide">Matches</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {games.map((game, index) => (
                       <tr
                         key={game.id}
-                        className="hover-elevate"
+                        className="hover-elevate transition-colors"
                         data-testid={`game-row-${index}`}
                       >
                         <td className="p-4" data-testid={`game-date-${index}`}>
@@ -200,18 +217,24 @@ export default function Profile() {
                         <td className="text-right p-4 font-mono" data-testid={`game-score-${index}`}>
                           {game.score}
                         </td>
-                        <td className="text-right p-4 font-mono text-primary" data-testid={`game-bonus-${index}`}>
-                          +{game.bonus}
+                        <td className="text-right p-4 font-mono" data-testid={`game-bonus-${index}`}>
+                          <Badge variant="outline" className="text-primary">
+                            +{game.bonus}
+                          </Badge>
                         </td>
                         <td className="text-right p-4 font-mono font-bold" data-testid={`game-total-${index}`}>
-                          {game.totalPoints}
+                          <Badge variant="secondary">
+                            {game.totalPoints}
+                          </Badge>
                         </td>
                         <td className="text-right p-4 font-mono" data-testid={`game-time-${index}`}>
                           {Math.floor(game.timeRemaining / 60)}:
                           {(game.timeRemaining % 60).toString().padStart(2, "0")}
                         </td>
                         <td className="text-right p-4 font-mono" data-testid={`game-matches-${index}`}>
-                          {game.matchesFound}/8
+                          <Badge variant={game.matchesFound === 8 ? "default" : "secondary"}>
+                            {game.matchesFound}/8
+                          </Badge>
                         </td>
                       </tr>
                     ))}

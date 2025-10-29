@@ -1,8 +1,8 @@
-// API routes - referencing Replit Auth blueprint
+// API routes
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./googleAuth";
 import { insertGameSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
@@ -10,22 +10,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware setup
   await setupAuth(app);
 
-  // Auth routes (from Replit Auth blueprint)
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+  // Note: /api/auth/user endpoint is handled in emailAuth.ts
 
   // Game routes
   app.post("/api/games", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       // Validate request body
       const validationResult = insertGameSchema.safeParse({
@@ -64,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/profile/:userId/stats", isAuthenticated, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const authenticatedUserId = String(req.user.claims.sub);
+      const authenticatedUserId = String((req.user as any).id);
       
       // Security check: users can only view their own profile (normalize to strings)
       if (userId !== authenticatedUserId) {
@@ -82,7 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/profile/:userId/games", isAuthenticated, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const authenticatedUserId = String(req.user.claims.sub);
+      const authenticatedUserId = String((req.user as any).id);
       
       // Security check: users can only view their own profile (normalize to strings)
       if (userId !== authenticatedUserId) {

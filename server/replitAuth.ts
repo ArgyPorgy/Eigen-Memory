@@ -9,9 +9,8 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
-if (!process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
-}
+// For local development, make Replit Auth optional
+const isLocalDev = !process.env.REPLIT_DOMAINS && process.env.NODE_ENV === 'development';
 
 const getOidcConfig = memoize(
   async () => {
@@ -25,6 +24,21 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  
+  if (isLocalDev) {
+    // Use memory store for local dev without DB
+    return session({
+      secret: process.env.SESSION_SECRET || 'local-dev-secret-change-in-production',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: false, // Allow http in local dev
+        maxAge: sessionTtl,
+      },
+    });
+  }
+  
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -70,6 +84,51 @@ async function upsertUser(
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
+  
+  // Check if running in local dev without Replit Auth
+  if (isLocalDev) {
+    console.warn("⚠️  Running in local dev mode - Replit Auth will be mocked");
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    passport.serializeUser((user: Express.User, cb) => cb(null, user));
+    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+    
+    // Mock login for local dev
+    app.get("/api/login", async (req, res) => {
+      // Create mock user in database for local dev
+      try {
+        await storage.upsertUser({
+          id: 'local-dev-user-id',
+          email: 'dev@example.com',
+          firstName: 'Local',
+          lastName: 'Dev',
+          profileImageUrl: null,
+        });
+      } catch (err) {
+        console.error("Error creating mock user:", err);
+      }
+      
+      const mockUser = {
+        claims: {
+          sub: 'local-dev-user-id',
+          email: 'dev@example.com',
+          first_name: 'Local',
+          last_name: 'Dev',
+          profile_image_url: null,
+        },
+        expires_at: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60),
+      };
+      req.login(mockUser, () => res.redirect('/'));
+    });
+    
+    app.get("/api/logout", (req, res) => {
+      req.logout(() => res.redirect('/'));
+    });
+    
+    return;
+  }
+  
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -85,8 +144,12 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
+  const domains = process.env.REPLIT_DOMAINS?.split(",").filter(d => d.trim());
+  if (!domains || domains.length === 0) {
+    throw new Error("REPLIT_DOMAINS must be configured with at least one domain");
+  }
+
+  for (const domain of domains) {
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,

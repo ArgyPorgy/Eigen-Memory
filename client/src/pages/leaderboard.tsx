@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Trophy, Medal, Award, ArrowLeft, User } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, User } from "lucide-react";
 import { Link } from "wouter";
 import type { LeaderboardEntry } from "@shared/schema";
 
@@ -16,11 +20,11 @@ export default function Leaderboard() {
   // Get rank badges for top 3
   const getRankBadge = (rank: number) => {
     if (rank === 1) {
-      return <Trophy className="w-6 h-6 text-yellow-500" />;
+      return <img src="/first.png" alt="First Place" className="w-12 h-12 mx-auto" />;
     } else if (rank === 2) {
-      return <Medal className="w-6 h-6 text-gray-400" />;
+      return <img src="/second.png" alt="Second Place" className="w-12 h-12 mx-auto" />;
     } else if (rank === 3) {
-      return <Award className="w-6 h-6 text-amber-700" />;
+      return <img src="/third.png" alt="Third Place" className="w-12 h-12 mx-auto" />;
     }
     return null;
   };
@@ -48,7 +52,7 @@ export default function Leaderboard() {
 
         {/* Title */}
         <div className="text-center space-y-2">
-          <Trophy className="w-16 h-16 text-primary mx-auto" />
+          <img src="/Leaderboard.svg" alt="Leaderboard" className="w-16 h-16 mx-auto" />
           <h1 className="text-5xl font-bold" data-testid="text-leaderboard-title">
             Top Players
           </h1>
@@ -60,16 +64,14 @@ export default function Leaderboard() {
         {/* Leaderboard */}
         <Card className="overflow-hidden">
           {isLoading ? (
-            <div className="p-12 text-center" data-testid="loading-leaderboard">
-              <div className="animate-pulse space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-16 bg-muted rounded" />
-                ))}
-              </div>
+            <div className="p-12 space-y-4" data-testid="loading-leaderboard">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
             </div>
           ) : !leaderboard || leaderboard.length === 0 ? (
             <div className="p-12 text-center space-y-4" data-testid="empty-leaderboard">
-              <Trophy className="w-12 h-12 text-muted-foreground mx-auto" />
+              <img src="/Leaderboard.svg" alt="Leaderboard" className="w-12 h-12 mx-auto opacity-50" />
               <p className="text-muted-foreground">
                 No games played yet. Be the first to set a score!
               </p>
@@ -84,16 +86,20 @@ export default function Leaderboard() {
                 return (
                   <div
                     key={entry.userId}
-                    className={`p-6 flex items-center gap-6 transition-colors ${
-                      isCurrentUser ? "bg-primary/5" : "hover-elevate"
-                    } ${isTopThree ? "border-l-4 border-l-primary" : ""}`}
+                    className={`p-6 flex items-center gap-6 transition-all ${
+                      isCurrentUser ? "bg-primary/10 border-l-4 border-l-primary" : "hover-elevate"
+                    } ${isTopThree && !isCurrentUser ? "border-l-4 border-l-primary/50" : ""}`}
                     data-testid={`leaderboard-entry-${rank}`}
                   >
                     {/* Rank */}
                     <div className="w-16 flex-shrink-0 text-center">
                       {getRankBadge(rank) || (
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto">
-                          <span className="text-xl font-bold font-mono">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
+                          isTopThree ? "bg-primary/20" : "bg-muted"
+                        }`}>
+                          <span className={`text-xl font-bold font-mono ${
+                            isTopThree ? "text-primary" : ""
+                          }`}>
                             {rank}
                           </span>
                         </div>
@@ -102,21 +108,28 @@ export default function Leaderboard() {
 
                     {/* User Info */}
                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                      {entry.profileImageUrl && (
-                        <img
-                          src={entry.profileImageUrl}
-                          alt="Profile"
-                          className="w-12 h-12 rounded-full border-2 border-primary object-cover flex-shrink-0"
-                          data-testid={`img-avatar-${rank}`}
-                        />
-                      )}
+                      <Avatar className="h-12 w-12 border-2 border-primary flex-shrink-0">
+                        <AvatarImage src={entry.profileImageUrl || undefined} alt="Profile" />
+                        <AvatarFallback>
+                          <User className="h-6 w-6" />
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-lg truncate" data-testid={`text-name-${rank}`}>
-                          {entry.firstName || entry.email || "Anonymous"}
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-lg truncate" data-testid={`text-name-${rank}`}>
+                            {entry.firstName || entry.email || "Anonymous"}
+                          </p>
                           {isCurrentUser && (
-                            <span className="ml-2 text-sm text-primary">(You)</span>
+                            <Badge variant="secondary" className="text-xs">
+                              You
+                            </Badge>
                           )}
-                        </p>
+                          {isTopThree && (
+                            <Badge variant="default" className="text-xs">
+                              Top {rank}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {entry.gamesPlayed} {entry.gamesPlayed === 1 ? "game" : "games"} played
                         </p>
@@ -124,18 +137,19 @@ export default function Leaderboard() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex gap-8 flex-shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Total Points</p>
+                    <div className="flex gap-6 flex-shrink-0">
+                      <div className="text-right space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Points</p>
                         <p className="text-2xl font-bold font-mono" data-testid={`text-points-${rank}`}>
                           {entry.totalPoints.toLocaleString()}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Best Score</p>
-                        <p className="text-xl font-bold font-mono text-primary">
+                      <Separator orientation="vertical" className="h-12" />
+                      <div className="text-right space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Best Score</p>
+                        <Badge variant="outline" className="text-lg px-3 py-1">
                           {entry.bestScore.toLocaleString()}
-                        </p>
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -147,19 +161,26 @@ export default function Leaderboard() {
 
         {/* Current User Status */}
         {user && leaderboard && leaderboard.length > 0 && (
-          <Card className="p-6 text-center bg-primary/5">
+          <Card className="p-6 text-center bg-primary/10 border-primary/20">
             {leaderboard.findIndex((e) => e.userId === user.id) !== -1 ? (
-              <p className="text-lg">
-                You're ranked{" "}
-                <span className="font-bold text-primary text-2xl">
-                  #{leaderboard.findIndex((e) => e.userId === user.id) + 1}
-                </span>{" "}
-                on the leaderboard!
-              </p>
+              <div className="space-y-2">
+                <p className="text-lg text-muted-foreground">Your Rank</p>
+                <div className="flex items-center justify-center gap-2">
+                  <Badge variant="default" className="text-2xl px-6 py-3">
+                    #{leaderboard.findIndex((e) => e.userId === user.id) + 1}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Keep playing to climb higher!
+                </p>
+              </div>
             ) : (
-              <p className="text-muted-foreground">
-                Play more games to make it to the top 10!
-              </p>
+              <div className="space-y-2">
+                <Trophy className="w-8 h-8 text-muted-foreground mx-auto" />
+                <p className="text-muted-foreground">
+                  Play more games to make it to the leaderboard!
+                </p>
+              </div>
             )}
           </Card>
         )}
