@@ -176,7 +176,7 @@ export default function Leaderboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                <Trophy className="w-8 h-8 text-muted-foreground mx-auto" />
+                <img src="/Leaderboard.svg" alt="Leaderboard" className="w-8 h-8 mx-auto opacity-50" />
                 <p className="text-muted-foreground">
                   Play more games to make it to the leaderboard!
                 </p>

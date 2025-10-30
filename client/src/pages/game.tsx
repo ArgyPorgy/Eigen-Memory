@@ -44,6 +44,40 @@ const SVG_FILES = [
 // Create 8 pairs by using all 8 SVGs
 const SYMBOLS: SymbolType[] = SVG_FILES.map(image => ({ type: 'image' as const, image }));
 
+// Proper Fisher-Yates shuffle algorithm
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// Preload images
+function preloadImages(imagePaths: string[]): Promise<void> {
+  return new Promise((resolve) => {
+    let loadedCount = 0;
+    const totalImages = imagePaths.length;
+    
+    if (totalImages === 0) {
+      resolve();
+      return;
+    }
+    
+    imagePaths.forEach((path) => {
+      const img = new Image();
+      img.onload = img.onerror = () => {
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          resolve();
+        }
+      };
+      img.src = path;
+    });
+  });
+}
+
 type Tile = {
   id: number;
   symbolIndex: number; // Stable index for comparison
@@ -66,6 +100,7 @@ export default function Game() {
   const [isGameActive, setIsGameActive] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
 
   // Save game mutation
   const saveGameMutation = useMutation({
@@ -108,17 +143,14 @@ export default function Game() {
       ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
     ];
     
-    // Shuffle using Fisher-Yates algorithm
-    const shuffled = symbolPairs
-      .map((item, id) => ({ ...item, id, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map((item, index) => ({
-        id: index,
-        symbolIndex: item.symbolIndex,
-        symbol: item.symbol,
-        isFlipped: false,
-        isMatched: false,
-      }));
+    // Properly shuffle using Fisher-Yates algorithm
+    const shuffled = shuffleArray(symbolPairs).map((item, index) => ({
+      id: index,
+      symbolIndex: item.symbolIndex,
+      symbol: item.symbol,
+      isFlipped: false,
+      isMatched: false,
+    }));
 
     setTiles(shuffled);
     setFlippedIndices([]);
@@ -130,19 +162,20 @@ export default function Game() {
     setIsGameWon(false);
   }, []);
 
-  // Initialize game on mount (but don't auto-start)
+  // Preload images and initialize game on mount
   useEffect(() => {
-    // Create pairs of tiles with stable indices
-    const symbolPairs = [
-      ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
-      ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
-    ];
-    
-    // Shuffle using Fisher-Yates algorithm
-    const shuffled = symbolPairs
-      .map((item, id) => ({ ...item, id, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map((item, index) => ({
+    // Preload all SVG images
+    preloadImages(SVG_FILES).then(() => {
+      setImagesLoaded(true);
+      
+      // Create pairs of tiles with stable indices
+      const symbolPairs = [
+        ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
+        ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
+      ];
+      
+      // Properly shuffle using Fisher-Yates algorithm
+      const shuffled = shuffleArray(symbolPairs).map((item, index) => ({
         id: index,
         symbolIndex: item.symbolIndex,
         symbol: item.symbol,
@@ -150,7 +183,8 @@ export default function Game() {
         isMatched: false,
       }));
 
-    setTiles(shuffled);
+      setTiles(shuffled);
+    });
   }, []);
 
   // Timer countdown
@@ -341,8 +375,19 @@ export default function Game() {
       {/* Main Game Area */}
       <main className="flex-1 p-6 flex flex-col items-center justify-center">
         <div className="max-w-4xl w-full space-y-8">
+          {/* Loading State */}
+          {!imagesLoaded && (
+            <Card className="p-8 text-center space-y-6 border-2 border-primary/20">
+              <div className="space-y-4">
+                <Zap className="w-16 h-16 mx-auto animate-pulse text-primary" />
+                <h2 className="text-2xl font-bold">Loading Game...</h2>
+                <p className="text-muted-foreground">Preparing tiles</p>
+              </div>
+            </Card>
+          )}
+
           {/* Start Game Button */}
-          {!isGameActive && !isGameOver && !isGameWon && (
+          {imagesLoaded && !isGameActive && !isGameOver && !isGameWon && (
             <Card className="p-8 text-center space-y-6 border-2 border-primary/20">
               <div className="space-y-2">
                 <img src="/Variant7.svg" alt="Ready to Play" className="w-16 h-16 mx-auto" />
@@ -414,9 +459,10 @@ export default function Game() {
           )}
 
           {/* Game Board */}
-          <Card className="p-8">
-            <div className="grid grid-cols-4 gap-3 max-w-xl mx-auto">
-              {tiles.map((tile, index) => {
+          {imagesLoaded && (
+            <Card className="p-8">
+              <div className="grid grid-cols-4 gap-3 max-w-xl mx-auto">
+                {tiles.map((tile, index) => {
                 return (
                   <button
                     key={tile.id}
@@ -450,9 +496,10 @@ export default function Game() {
               })}
             </div>
           </Card>
+          )}
 
           {/* Game Over / Won Messages */}
-          {isGameWon && (
+          {imagesLoaded && isGameWon && (
             <Card className="p-8 text-center space-y-6 border-2 border-primary bg-primary/5" data-testid="card-game-won">
               <div className="space-y-2">
                 <img src="/Achievement.svg" alt="Achievement" className="w-20 h-20 mx-auto animate-bounce" />
@@ -493,7 +540,7 @@ export default function Game() {
             </Card>
           )}
 
-          {isGameOver && !isGameWon && (
+          {imagesLoaded && isGameOver && !isGameWon && (
             <Card className="p-8 text-center space-y-6 border-2 border-destructive bg-destructive/5" data-testid="card-game-over">
               <div className="space-y-2">
                 <Clock className="w-16 h-16 text-destructive mx-auto" />
@@ -528,7 +575,7 @@ export default function Game() {
           )}
 
           {/* New Game Button (when game is active) */}
-          {isGameActive && !isGameOver && !isGameWon && (
+          {imagesLoaded && isGameActive && !isGameOver && !isGameWon && (
             <div className="text-center">
               <Button
                 variant="outline"
