@@ -28,12 +28,13 @@ app.use((req, res, next) => {
   // Content Security Policy
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com; " + // unsafe-eval needed for Vite dev, unsafe-inline for some libs
+    "default-src 'self' blob: data:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://fonts.googleapis.com; " + // unsafe-eval needed for Vite dev, unsafe-inline for some libs
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; " +
     "font-src 'self' https://fonts.gstatic.com data:; " +
     "img-src 'self' data: https: blob:; " +
     "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; " +
+    "worker-src 'self' blob:; " +
     "frame-ancestors 'none'; " +
     "base-uri 'self'; " +
     "form-action 'self';"
