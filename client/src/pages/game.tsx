@@ -46,13 +46,13 @@ type SymbolType = {
 
 // All available SVG images
 const SVG_FILES = [
-  '/eigenn.svg',
+  '/Eglugu.svg',
   '/Cloud.svg',
   '/nader.svg',
   '/pengu.svg',
   '/Slashing.svg',
   '/sreeram.svg',
-  '/Tribal tomb.svg',
+  '/horn.svg',
   '/abstract-robot.svg',
 ];
 
