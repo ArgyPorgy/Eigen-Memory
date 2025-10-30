@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -101,6 +101,7 @@ export default function Game() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Save game mutation
   const saveGameMutation = useMutation({
@@ -162,8 +163,36 @@ export default function Game() {
     setIsGameWon(false);
   }, []);
 
+  // Fire an extra celebratory pop right when the congrats card appears
+  useEffect(() => {
+    if (isGameWon) {
+      // Quick birthday-style pop from the bottom
+      confetti({
+        particleCount: 140,
+        spread: 70,
+        startVelocity: 55,
+        origin: { y: 0.9 },
+        scalar: 0.9,
+        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'],
+      });
+    }
+  }, [isGameWon]);
+
   // Preload images and initialize game on mount
   useEffect(() => {
+    // Prepare background music
+    if (!audioRef.current) {
+      const audio = new Audio('/gamemusic.mp3');
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.volume = 0.35;
+      audioRef.current = audio;
+      // Try autoplay (may be blocked until user interacts)
+      audioRef.current.play().catch(() => {
+        /* ignore - will play on Start Game click */
+      });
+    }
+
     // Preload all SVG images
     preloadImages(SVG_FILES).then(() => {
       setImagesLoaded(true);
@@ -185,6 +214,16 @@ export default function Game() {
 
       setTiles(shuffled);
     });
+  }, []);
+
+  // Stop music on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
   }, []);
 
   // Timer countdown
@@ -399,6 +438,8 @@ export default function Game() {
                 onClick={() => {
                   setIsGameActive(true);
                   setTimeRemaining(180);
+                  // Ensure music starts after user interaction
+                  audioRef.current?.play().catch(() => {});
                 }}
                 className="text-lg px-12 py-6 rounded-full"
                 data-testid="button-start"
@@ -486,6 +527,9 @@ export default function Game() {
                         src={tile.symbol.image}
                         alt="Tile"
                         className="w-24 h-24 md:w-28 md:h-28 object-contain"
+                        loading="eager"
+                        decoding="sync"
+                        draggable={false}
                         style={{
                           transform: "rotateY(0deg)",
                         }}

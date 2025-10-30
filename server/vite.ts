@@ -69,12 +69,23 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   // In production/Vercel, static files should be served from dist/public
-  // But Vercel handles static assets separately, so we only need the fallback for API routes
+  // But Vercel/Render handle static assets; add aggressive cache headers to speed loads
   // For non-API routes, serve the index.html (SPA routing)
   const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
 
   if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath, { index: false }));
+    app.use(
+      express.static(distPath, {
+        index: false,
+        maxAge: "31536000", // 1 year
+        setHeaders: (res, filePath) => {
+          // Immutable caching for finger-printed assets and SVGs
+          if (/(\.svg|\.[a-f0-9]{8,}\.)/i.test(filePath)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }),
+    );
   }
 
   // fall through to index.html if the file doesn't exist (for SPA routing)
