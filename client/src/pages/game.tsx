@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,21 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Navigation } from "@/components/Navigation";
 import confetti from "canvas-confetti";
+
+function firePopConfetti() {
+  const fire = (fn: typeof confetti) => fn({
+    particleCount: 140,
+    spread: 70,
+    startVelocity: 55,
+    origin: { y: 0.9 },
+    scalar: 0.9,
+    colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'],
+  });
+  try {
+    if (typeof confetti === 'function') return fire(confetti);
+  } catch {}
+  import('canvas-confetti').then(mod => fire(mod.default)).catch(() => {});
+}
 import { 
   RotateCcw, 
   User, 
@@ -101,7 +116,6 @@ export default function Game() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Save game mutation
   const saveGameMutation = useMutation({
@@ -167,32 +181,12 @@ export default function Game() {
   useEffect(() => {
     if (isGameWon) {
       // Quick birthday-style pop from the bottom
-      confetti({
-        particleCount: 140,
-        spread: 70,
-        startVelocity: 55,
-        origin: { y: 0.9 },
-        scalar: 0.9,
-        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'],
-      });
+      firePopConfetti();
     }
   }, [isGameWon]);
 
   // Preload images and initialize game on mount
   useEffect(() => {
-    // Prepare background music
-    if (!audioRef.current) {
-      const audio = new Audio('/gamemusic.mp3');
-      audio.loop = true;
-      audio.preload = 'auto';
-      audio.volume = 0.35;
-      audioRef.current = audio;
-      // Try autoplay (may be blocked until user interacts)
-      audioRef.current.play().catch(() => {
-        /* ignore - will play on Start Game click */
-      });
-    }
-
     // Preload all SVG images
     preloadImages(SVG_FILES).then(() => {
       setImagesLoaded(true);
@@ -216,15 +210,7 @@ export default function Game() {
     });
   }, []);
 
-  // Stop music on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
+  // No audio lifecycle here; handled globally in App-level music controller
 
   // Timer countdown
   useEffect(() => {
@@ -438,8 +424,6 @@ export default function Game() {
                 onClick={() => {
                   setIsGameActive(true);
                   setTimeRemaining(180);
-                  // Ensure music starts after user interaction
-                  audioRef.current?.play().catch(() => {});
                 }}
                 className="text-lg px-12 py-6 rounded-full"
                 data-testid="button-start"

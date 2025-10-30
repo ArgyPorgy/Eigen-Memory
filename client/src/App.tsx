@@ -11,6 +11,7 @@ import Landing from "@/pages/landing";
 import Game from "@/pages/game";
 import Leaderboard from "@/pages/leaderboard";
 import Profile from "@/pages/profile";
+import { playMusic, stopMusic } from "@/lib/music";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,15 @@ function Router() {
       setWasUnauthenticated(!isAuthenticated);
     }
   }, [isAuthenticated, isLoading, setLocation, wasUnauthenticated]);
+
+  // Global background music control: play when signed-in, stop on sign-out
+  useEffect(() => {
+    if (isAuthenticated) {
+      playMusic();
+    } else {
+      stopMusic();
+    }
+  }, [isAuthenticated]);
 
   // Show loading screen during auth check or during transition
   if (showLoading || isLoading) {
