@@ -46,7 +46,7 @@ type SymbolType = {
 
 // All available SVG images
 const SVG_FILES = [
-  '/Eglugu.svg',
+  '/eigenlogo.svg',
   '/Cloud.svg',
   '/nader.svg',
   '/pengu.svg',
