@@ -144,7 +144,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
             </div>
             <Button
               type="button"
-              variant="link"
+              variant="ghost"
               className="w-full text-sm"
               onClick={handleSendCode}
               disabled={isLoading}

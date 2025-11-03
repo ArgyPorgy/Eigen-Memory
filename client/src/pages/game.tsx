@@ -10,6 +10,14 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Navigation } from "@/components/Navigation";
 import confetti from "canvas-confetti";
 
@@ -34,7 +42,10 @@ import {
   Clock,
   Target,
   Zap,
+  Share2,
+  Trophy,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import type { InsertGame } from "@shared/schema";
 import type { LucideIcon } from "lucide-react";
 
@@ -105,6 +116,7 @@ export default function Game() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // Game state
   const [tiles, setTiles] = useState<Tile[]>([]);
@@ -116,6 +128,10 @@ export default function Game() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [showWinDialog, setShowWinDialog] = useState(false);
+  const [finalScore, setFinalScore] = useState(0);
+  const [finalBonus, setFinalBonus] = useState(0);
+  const [finalTotal, setFinalTotal] = useState(0);
 
   // Save game mutation
   const saveGameMutation = useMutation({
@@ -175,6 +191,7 @@ export default function Game() {
     setIsGameActive(true);
     setIsGameOver(false);
     setIsGameWon(false);
+    setShowWinDialog(false);
   }, []);
 
   // Fire an extra celebratory pop right when the congrats card appears
@@ -210,7 +227,7 @@ export default function Game() {
     });
   }, []);
 
-  // No audio lifecycle here; handled globally in App-level music controller
+  // Music is now controlled only by the music button in Navigation
 
   // Timer countdown
   useEffect(() => {
@@ -298,6 +315,11 @@ export default function Game() {
     const bonus = timeRemaining * 10;
     const totalPoints = finalScore + bonus;
 
+    // Store final scores for dialog
+    setFinalScore(finalScore);
+    setFinalBonus(bonus);
+    setFinalTotal(totalPoints);
+
     // Trigger confetti burst effect
     const duration = 3000;
     const animationEnd = Date.now() + duration;
@@ -342,10 +364,28 @@ export default function Game() {
       });
     }
 
+    // Show the win dialog
+    setShowWinDialog(true);
+
     toast({
       title: "🎉 Congratulations!",
       description: `You won with ${totalPoints} total points!`,
     });
+  };
+
+  // Handle Twitter share
+  const handleTwitterShare = () => {
+    const gameUrl = window.location.origin;
+    const scoreCardUrl = `${gameUrl}/api/score-card?firstName=${encodeURIComponent(user?.firstName || 'Player')}&totalScore=${finalTotal}&baseScore=${finalScore}&bonus=${finalBonus}`;
+    const tweetText = `GM \n
+    
+    I just scored ${finalTotal} points playing Unmatched by EigenTribe!\n
+    
+    Check out my score: ${scoreCardUrl}\n
+    
+    You should try it too: ${gameUrl}`;
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Format time as MM:SS
@@ -420,12 +460,12 @@ export default function Game() {
                 <p className="text-muted-foreground text-lg">Match all 8 pairs before time runs out!</p>
               </div>
               <Button
-                size="lg"
+                size="default"
                 onClick={() => {
                   setIsGameActive(true);
                   setTimeRemaining(180);
                 }}
-                className="text-lg px-12 py-6 rounded-full"
+                className="px-8"
                 data-testid="button-start"
               >
             
@@ -526,47 +566,7 @@ export default function Game() {
           </Card>
           )}
 
-          {/* Game Over / Won Messages */}
-          {imagesLoaded && isGameWon && (
-            <Card className="p-8 text-center space-y-6 border-2 border-primary bg-primary/5" data-testid="card-game-won">
-              <div className="space-y-2">
-                <img src="/Achievement.svg" alt="Achievement" className="w-20 h-20 mx-auto animate-bounce" />
-                <h2 className="text-4xl font-bold">Congratulations!</h2>
-                <p className="text-muted-foreground text-lg">You matched all pairs!</p>
-              </div>
-              <Separator />
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-                  <span className="text-muted-foreground">Base Score:</span>
-                  <Badge variant="secondary" className="text-lg px-4 py-2">
-                    {score}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-                  <span className="text-muted-foreground">Time Bonus:</span>
-                  <Badge variant="outline" className="text-lg px-4 py-2">
-                    +{potentialBonus}
-                  </Badge>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg">
-                  <span className="text-lg font-semibold">Total Points:</span>
-                  <Badge variant="default" className="text-xl px-5 py-3">
-                    {potentialTotal}
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                size="lg"
-                onClick={initializeGame}
-                className="rounded-full"
-                data-testid="button-play-again"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Play Again
-              </Button>
-            </Card>
-          )}
+          {/* Game Over Messages */}
 
           {imagesLoaded && isGameOver && !isGameWon && (
             <Card className="p-8 text-center space-y-6 border-2 border-destructive bg-destructive/5" data-testid="card-game-over">
@@ -618,6 +618,75 @@ export default function Game() {
           )}
         </div>
       </main>
+
+      {/* Win Dialog */}
+      <Dialog open={showWinDialog} onOpenChange={() => {/* Prevent closing on outside click */}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <img src="/Achievement.svg" alt="Achievement" className="w-20 h-20 mx-auto mb-4 animate-bounce" />
+            <DialogTitle className="text-center text-3xl">
+              Congratulations!
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2 text-base">
+              You matched all pairs!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+              <span className="text-muted-foreground">Base Score:</span>
+              <Badge variant="secondary" className="text-lg px-4 py-2">
+                {finalScore}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-card rounded-lg">
+              <span className="text-muted-foreground">Time Bonus:</span>
+              <Badge variant="outline" className="text-lg px-4 py-2">
+                +{finalBonus}
+              </Badge>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg">
+              <span className="text-lg font-semibold">Total Points:</span>
+              <Badge variant="default" className="text-xl px-5 py-3">
+                {finalTotal}
+              </Badge>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              onClick={handleTwitterShare}
+              className="w-full"
+              size="lg"
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share on X/Twitter
+            </Button>
+            <Button
+              onClick={initializeGame}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Play Again
+            </Button>
+            <Button
+              onClick={() => {
+                setShowWinDialog(false);
+                setLocation("/leaderboard");
+              }}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              <Trophy className="w-4 h-4 mr-2" />
+              View Leaderboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

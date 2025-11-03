@@ -36,7 +36,7 @@ export function Navigation() {
   };
 
   return (
-    <NavigationMenu viewport={isMobile}>
+    <NavigationMenu>
       <NavigationMenuList className="flex-wrap">
         <NavigationMenuItem>
           <Link href="/leaderboard">

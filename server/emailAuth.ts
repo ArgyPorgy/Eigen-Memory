@@ -28,11 +28,11 @@ async function sendVerificationEmail(email: string, code: string): Promise<void>
 // Clean up expired codes
 function cleanupExpiredCodes() {
   const now = Date.now();
-  for (const [key, code] of verificationCodes.entries()) {
+  Array.from(verificationCodes.entries()).forEach(([key, code]) => {
     if (code.expiresAt < now) {
       verificationCodes.delete(key);
     }
-  }
+  });
 }
 
 // Run cleanup every 5 minutes
@@ -128,12 +128,12 @@ export async function setupAuth(app: Express) {
         });
       }
 
-      // Create session
+      // Create session (with non-null assertions for session type compatibility)
       const sessionUser = {
         id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        email: user.email ?? '',
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
         profileImageUrl: user.profileImageUrl,
       };
 

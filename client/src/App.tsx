@@ -36,11 +36,9 @@ function Router() {
     }
   }, [isAuthenticated, isLoading, setLocation, wasUnauthenticated]);
 
-  // Global background music control: play when signed-in, stop on sign-out
+  // Stop music when user signs out (but don't auto-start on sign-in)
   useEffect(() => {
-    if (isAuthenticated) {
-      playMusic();
-    } else {
+    if (!isAuthenticated) {
       stopMusic();
     }
   }, [isAuthenticated]);
