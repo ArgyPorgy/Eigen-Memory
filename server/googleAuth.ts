@@ -4,6 +4,7 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { storage } from "./storage";
+import connectPg from "connect-pg-simple";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -15,9 +16,25 @@ export function getSession() {
     console.error('❌ SECURITY WARNING: SESSION_SECRET must be set to a strong random value in production!');
   }
   
+  // Use PostgreSQL session store in production (or if DATABASE_URL is available)
+  let store: session.Store | undefined;
+  if (isProduction && process.env.DATABASE_URL) {
+    const pgStore = connectPg(session);
+    store = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true, // Create sessions table if it doesn't exist
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+    console.log('✅ Using PostgreSQL session store');
+  } else if (isProduction) {
+    console.warn('⚠️  WARNING: DATABASE_URL not found. Using MemoryStore (not recommended for production)');
+  }
+  
   return session({
     secret: sessionSecret || 'local-dev-secret-change-in-production',
     name: 'sessionId', // Custom session name (not default 'connect.sid')
+    store: store, // Use PostgreSQL store in production, undefined (MemoryStore) in dev
     resave: false,
     saveUninitialized: false,
     cookie: {
