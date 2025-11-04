@@ -23,13 +23,46 @@ export function hasMultipleWallets(): boolean {
 
 // Get all available wallet providers
 export function getWalletProviders(): any[] {
+  // MetaMask aggregator mode - providers array
   if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
     return window.ethereum.providers;
   }
+  // Alternative providers array
   if (window.ethereumProviders && Array.isArray(window.ethereumProviders)) {
     return window.ethereumProviders;
   }
+  // Single provider
   return window.ethereum ? [window.ethereum] : [];
+}
+
+// Check if currently connected to a specific provider
+export async function getConnectedProvider(): Promise<any | null> {
+  if (!window.ethereum) {
+    return null;
+  }
+
+  // If aggregator mode, check which provider has active accounts
+  if (hasMultipleWallets()) {
+    const providers = getWalletProviders();
+    for (const provider of providers) {
+      try {
+        const accounts = await provider.request({ method: "eth_accounts" }).catch(() => []);
+        if (accounts && accounts.length > 0) {
+          return provider;
+        }
+      } catch (error) {
+        // Continue checking other providers
+      }
+    }
+  }
+
+  // Single provider or no accounts found
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" }).catch(() => []);
+    return accounts && accounts.length > 0 ? window.ethereum : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 const ETHEREUM_MAINNET_CHAIN_ID = "0x1"; // Ethereum mainnet
@@ -68,14 +101,16 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
     // If forceReconnect is true, first check if already connected and revoke permissions
     if (forceReconnect) {
       try {
-        // Check all available providers if multiple wallets exist
+        // Check if MetaMask aggregator is active (multiple wallets detected)
+        const hasAggregator = hasMultipleWallets();
         const providers = getWalletProviders();
         
+        // Revoke permissions from all providers
         for (const provider of providers) {
           try {
             const existingAccounts = await provider.request({
               method: "eth_accounts",
-            });
+            }).catch(() => []);
             
             if (existingAccounts && existingAccounts.length > 0) {
               // Try to revoke permissions to force wallet selector on next request
@@ -86,6 +121,8 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
                     eth_accounts: {}
                   }],
                 });
+                // Small delay to ensure MetaMask processes the revocation
+                await new Promise(resolve => setTimeout(resolve, 100));
               } catch (revokeError: any) {
                 // If revoke not supported, that's okay - we'll still request accounts
                 console.log("wallet_revokePermissions not supported for provider");
@@ -96,9 +133,18 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
             console.log("Error checking provider:", error);
           }
         }
+
+        // If using MetaMask aggregator, the selector should appear when we call eth_requestAccounts
+        // However, MetaMask might auto-select the last used wallet even after revocation
+        // In this case, users may need to manually switch wallets in MetaMask settings
+        if (hasAggregator) {
+          console.log("MetaMask aggregator detected - wallet selector should appear");
+          // Small delay to ensure MetaMask processes all revocations
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
       } catch (error) {
         // Ignore errors during revoke attempt
-        console.log("Error checking existing accounts:", error);
+        console.log("Error during reconnect preparation:", error);
       }
     }
 

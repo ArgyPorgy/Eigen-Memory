@@ -49,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware setup
   await setupAuth(app);
 
-  // Note: /api/auth/user endpoint is handled in emailAuth.ts
+  // Note: /api/auth/user endpoint is handled in walletAuth.ts
 
   // Game routes
   app.post("/api/games", isAuthenticated, async (req: any, res) => {

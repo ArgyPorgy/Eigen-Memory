@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { signMessage } from "@/lib/wallet";
+import { useSignMessage } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface UsernameSetupProps {
@@ -25,6 +25,7 @@ export function UsernameSetup({ isOpen, walletAddress, onComplete }: UsernameSet
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { signMessageAsync } = useSignMessage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +52,7 @@ export function UsernameSetup({ isOpen, walletAddress, onComplete }: UsernameSet
     try {
       // Sign message for username setup
       const message = `Set username: ${username}\n\nWallet: ${walletAddress}`;
-      const signature = await signMessage(message);
+      const signature = await signMessageAsync({ message });
 
       // Submit username
       const response = await apiRequest("POST", "/api/auth/username", {

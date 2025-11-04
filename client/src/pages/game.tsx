@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDisconnect } from "wagmi";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Button } from "@/components/ui/button";
@@ -132,6 +133,8 @@ export default function Game() {
   const [finalScore, setFinalScore] = useState(0);
   const [finalBonus, setFinalBonus] = useState(0);
   const [finalTotal, setFinalTotal] = useState(0);
+  
+  const { disconnect } = useDisconnect();
 
   // Save game mutation
   const saveGameMutation = useMutation({
@@ -420,9 +423,8 @@ export default function Game() {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
-                  // Disconnect wallet first
-                  const { disconnectWallet } = await import("@/lib/wallet");
-                  await disconnectWallet();
+                  // Disconnect wallet using Wagmi
+                  disconnect();
                   // Then logout from server
                   await fetch("/api/logout", { credentials: "include" });
                   window.location.href = "/";

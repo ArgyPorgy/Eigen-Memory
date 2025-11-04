@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { connectWallet, signMessage, isWalletInstalled, getWalletName } from "@/lib/wallet";
+import { useConnect, useAccount, useSignMessage } from "wagmi";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { UsernameSetup } from "@/components/UsernameSetup";
@@ -12,9 +12,13 @@ export default function Landing() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const { connect, connectors, isPending } = useConnect();
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
 
   const handleConnectWallet = async () => {
-    if (!isWalletInstalled()) {
+    if (connectors.length === 0) {
       toast({
         title: "Wallet Not Found",
         description: "Please install MetaMask, Coinbase Wallet, or another EVM-compatible wallet to continue.",
@@ -25,15 +29,49 @@ export default function Landing() {
 
     setIsConnecting(true);
     try {
-      // Check if wallet is already connected
-      const { getCurrentAccount } = await import("@/lib/wallet");
-      const currentAccount = await getCurrentAccount();
-      
-      // If already connected, force reconnect to show wallet selector
-      // This allows users to switch between wallets or accounts
-      const address = await connectWallet(!!currentAccount);
-      setWalletAddress(address);
+      // If already connected, use the connected address
+      if (isConnected && address) {
+        setWalletAddress(address);
+        await authenticateWithServer(address);
+        return;
+      }
 
+      // Find the best connector (prefer MetaMask, then injected, then first available)
+      const metaMaskConnector = connectors.find(c => c.id === 'metaMask' || c.name === 'MetaMask');
+      const injectedConnector = connectors.find(c => c.id === 'injected');
+      const connector = metaMaskConnector || injectedConnector || connectors[0];
+
+      // Connect wallet using Wagmi
+      connect(
+        { connector },
+        {
+          onSuccess: async (data) => {
+            const address = data.accounts[0];
+            setWalletAddress(address);
+            await authenticateWithServer(address);
+          },
+          onError: (error) => {
+            toast({
+              title: "Connection Failed",
+              description: error.message || "Failed to connect wallet",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    } catch (error: any) {
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const authenticateWithServer = async (address: string) => {
+    try {
       // Request nonce from server
       const nonceResponse = await apiRequest("POST", "/api/auth/nonce", {
         walletAddress: address,
@@ -41,8 +79,8 @@ export default function Landing() {
 
       const { message } = await nonceResponse.json();
 
-      // Request signature from user
-      const signature = await signMessage(message);
+      // Request signature from user using Wagmi
+      const signature = await signMessageAsync({ message });
 
       // Authenticate with server
       const authResponse = await apiRequest("POST", "/api/auth/wallet", {
@@ -61,13 +99,19 @@ export default function Landing() {
         window.location.href = "/";
       }
     } catch (error: any) {
-      toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect wallet",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnecting(false);
+      if (error.message?.includes("User rejected")) {
+        toast({
+          title: "Signature Rejected",
+          description: "You need to sign the message to continue.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Authentication Failed",
+          description: error.message || "Failed to authenticate",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -118,14 +162,14 @@ export default function Landing() {
                 className="text-base sm:text-lg px-8 sm:px-12 py-5 sm:py-6 rounded-full bg-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 w-full sm:w-auto"
                 style={{ color: '#21157d' }}
                 onClick={handleConnectWallet}
-                disabled={isConnecting}
+                disabled={isConnecting || isPending}
                 data-testid="button-connect-wallet"
               >
-                {isConnecting ? "Connecting..." : "Connect Wallet"}
+                {isConnecting || isPending ? "Connecting..." : "Connect Wallet"}
               </Button>
             </div>
 
-            {!isWalletInstalled() && (
+            {connectors.length === 0 && (
               <p className="text-center text-sm text-white/70">
                 Don't have a wallet?{" "}
                 <a
@@ -146,6 +190,35 @@ export default function Landing() {
                   Coinbase Wallet
                 </a>
               </p>
+            )}
+
+            {/* Show available connectors if multiple wallets are detected */}
+            {connectors.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-center text-xs text-white/60">Available wallets:</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {connectors.map((connector) => (
+                    <Button
+                      key={connector.uid}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        connect({ connector }, {
+                          onSuccess: async (data) => {
+                            const address = data.accounts[0];
+                            setWalletAddress(address);
+                            await authenticateWithServer(address);
+                          },
+                        });
+                      }}
+                      className="text-xs"
+                      disabled={isPending}
+                    >
+                      {connector.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
