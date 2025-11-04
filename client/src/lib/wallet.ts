@@ -4,7 +4,32 @@ import { ethers } from "ethers";
 declare global {
   interface Window {
     ethereum?: any;
+    ethereumProviders?: any[];
   }
+}
+
+// Check if MetaMask aggregator is available (multiple wallets detected)
+export function hasMultipleWallets(): boolean {
+  // MetaMask sets this when it detects other wallets
+  if (window.ethereum?.providers && Array.isArray(window.ethereum.providers) && window.ethereum.providers.length > 1) {
+    return true;
+  }
+  // Alternative check - some setups expose providers on window
+  if (window.ethereumProviders && Array.isArray(window.ethereumProviders) && window.ethereumProviders.length > 1) {
+    return true;
+  }
+  return false;
+}
+
+// Get all available wallet providers
+export function getWalletProviders(): any[] {
+  if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
+    return window.ethereum.providers;
+  }
+  if (window.ethereumProviders && Array.isArray(window.ethereumProviders)) {
+    return window.ethereumProviders;
+  }
+  return window.ethereum ? [window.ethereum] : [];
 }
 
 const ETHEREUM_MAINNET_CHAIN_ID = "0x1"; // Ethereum mainnet
@@ -34,13 +59,54 @@ export function getWalletName(): string {
   return window.ethereum.providerName || "EVM Wallet";
 }
 
-export async function connectWallet(): Promise<string> {
+export async function connectWallet(forceReconnect: boolean = false): Promise<string> {
   if (!window.ethereum) {
     throw new Error("No EVM wallet detected. Please install MetaMask, Coinbase Wallet, or another compatible wallet.");
   }
 
   try {
-    // Request account access
+    // If forceReconnect is true, first check if already connected and revoke permissions
+    if (forceReconnect) {
+      try {
+        // Check all available providers if multiple wallets exist
+        const providers = getWalletProviders();
+        
+        for (const provider of providers) {
+          try {
+            const existingAccounts = await provider.request({
+              method: "eth_accounts",
+            });
+            
+            if (existingAccounts && existingAccounts.length > 0) {
+              // Try to revoke permissions to force wallet selector on next request
+              try {
+                await provider.request({
+                  method: "wallet_revokePermissions",
+                  params: [{
+                    eth_accounts: {}
+                  }],
+                });
+              } catch (revokeError: any) {
+                // If revoke not supported, that's okay - we'll still request accounts
+                console.log("wallet_revokePermissions not supported for provider");
+              }
+            }
+          } catch (error) {
+            // Ignore errors for individual providers
+            console.log("Error checking provider:", error);
+          }
+        }
+      } catch (error) {
+        // Ignore errors during revoke attempt
+        console.log("Error checking existing accounts:", error);
+      }
+    }
+
+    // If multiple wallets are available, MetaMask aggregator should handle the selection
+    // Request account access - this will show wallet selector if:
+    // 1. Permissions were revoked (forceReconnect)
+    // 2. User has multiple accounts in MetaMask
+    // 3. Multiple wallet extensions are installed (MetaMask aggregator)
     const accounts = await window.ethereum.request({
       method: "eth_requestAccounts",
     });

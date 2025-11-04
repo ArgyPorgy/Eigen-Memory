@@ -25,9 +25,13 @@ export default function Landing() {
 
     setIsConnecting(true);
     try {
-      // Always request accounts explicitly - this will show popup if permissions were revoked
-      // If wallet is already connected, it will return immediately but signature will still show popup
-      const address = await connectWallet();
+      // Check if wallet is already connected
+      const { getCurrentAccount } = await import("@/lib/wallet");
+      const currentAccount = await getCurrentAccount();
+      
+      // If already connected, force reconnect to show wallet selector
+      // This allows users to switch between wallets or accounts
+      const address = await connectWallet(!!currentAccount);
       setWalletAddress(address);
 
       // Request nonce from server
