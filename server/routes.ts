@@ -201,6 +201,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <meta name="twitter:description" content="${description}">
   <meta name="twitter:image" content="${imageUrl}">
   
+  <!-- Redirect to base game URL -->
+  <script>
+    // Get the base URL (everything before /api)
+    const currentUrl = window.location.href;
+    const baseUrl = currentUrl.substring(0, currentUrl.indexOf('/api'));
+    // Redirect after a short delay to allow Twitter crawlers to see the meta tags
+    setTimeout(function() {
+      window.location.href = baseUrl || '/';
+    }, 100);
+  </script>
+  
   <style>
     body {
       margin: 0;
@@ -230,6 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <img src="${imageUrl}" alt="Score Card">
   <h1>${title}</h1>
   <p>${description}</p>
+  <p>Redirecting to game...</p>
 </body>
 </html>`;
       

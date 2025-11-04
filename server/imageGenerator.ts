@@ -34,9 +34,10 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
   const confettiBase64 = confettiBuffer.toString('base64');
   const confettiDataUri = `data:image/svg+xml;base64,${confettiBase64}`;
   
-  // Dark blue background color and slightly lighter for dialog
-  const bgColor = '#000386';
-  const dialogColor = '#0a0f9a'; // Slightly lighter dark blue
+  // Color scheme
+  const bgColor = '#121B2B';
+  const boxColor = '#1A2539'; // Rectangle box color
+  const scoreColor = '#B7C0E9'; // Score numbers color
   
   // Create base SVG for the card matching the design
   const svg = `
@@ -59,36 +60,28 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
              x="${width / 2 - 120}" y="80" 
              width="240" height="240" />
       
-      <!-- Main dialog box -->
-      <rect x="${width / 2 - 400}" y="280" width="800" height="280" 
-            rx="20" fill="${dialogColor}" 
-            stroke="rgba(255, 255, 255, 0.1)" stroke-width="1" />
-      
-      <!-- Dialog content -->
+      <!-- Main content area -->
       <g>
-        <!-- Title: Congratulations [Name]! -->
-        <text x="${width / 2}" y="340" 
-              font-family="Arial, sans-serif" font-size="52" font-weight="bold" 
-              fill="white" text-anchor="middle">Congratulations ${firstName}!</text>
+        <!-- Main title: I just scored [score] points -->
+        <text x="${width / 2}" y="360" 
+              font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
+              fill="white" text-anchor="middle">I just scored ${totalScore.toLocaleString()} points</text>
         
-        <!-- Subtitle: [Name], you have completed the match and earned [score]pts -->
-        <text x="${width / 2}" y="390" 
-              font-family="Arial, sans-serif" font-size="28" 
-              fill="white" text-anchor="middle">
-          ${firstName}, you have completed the match and earned ${totalScore.toLocaleString()}pts
+        <!-- Rectangle box under congratulations -->
+        <rect x="${width / 2 - 350}" y="400" width="700" height="140" 
+              rx="16" fill="${boxColor}" />
+        
+        <!-- Score display inside the box (large and bold with special color) -->
+        <text x="${width / 2}" y="480" 
+              font-family="Arial, sans-serif" font-size="72" font-weight="bold" 
+              fill="${scoreColor}" text-anchor="middle">
+          ${totalScore.toLocaleString()}
         </text>
         
-        <!-- Total Score label -->
-        <text x="${width / 2}" y="460" 
-              font-family="Arial, sans-serif" font-size="24" 
-              fill="white" text-anchor="middle">Total Score</text>
-        
-        <!-- Score display (large and bold) -->
-        <text x="${width / 2}" y="520" 
-              font-family="Arial, sans-serif" font-size="64" font-weight="bold" 
-              fill="white" text-anchor="middle">
-          ${totalScore.toLocaleString()} pts
-        </text>
+        <!-- CTA: Come play Unmatched by EigenTribe -->
+        <text x="${width / 2}" y="570" 
+              font-family="Arial, sans-serif" font-size="32" font-weight="600" 
+              fill="white" text-anchor="middle">Come play Unmatched by EigenTribe</text>
       </g>
     </svg>
   `;
