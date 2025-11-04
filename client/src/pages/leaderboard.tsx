@@ -1,17 +1,21 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, User } from "lucide-react";
+import { ArrowLeft, User, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import type { LeaderboardEntry } from "@shared/schema";
 
 export default function Leaderboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   const { data: leaderboard, isLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ["/api/leaderboard"],
@@ -130,7 +134,37 @@ export default function Leaderboard() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                        <button
+                          onClick={async () => {
+                            if (entry.walletAddress) {
+                              try {
+                                await navigator.clipboard.writeText(entry.walletAddress);
+                                setCopiedAddress(entry.walletAddress);
+                                toast({
+                                  title: "Copied!",
+                                  description: "Wallet address copied to clipboard",
+                                });
+                                setTimeout(() => setCopiedAddress(null), 2000);
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to copy address",
+                                  variant: "destructive",
+                                });
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground font-mono hover:text-foreground transition-colors cursor-pointer group mt-0.5"
+                          data-testid={`button-copy-wallet-${rank}`}
+                        >
+                          <span>{entry.walletAddress?.slice(0, 6)}...{entry.walletAddress?.slice(-4)}</span>
+                          {copiedAddress === entry.walletAddress ? (
+                            <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </button>
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                           {entry.gamesPlayed} {entry.gamesPlayed === 1 ? "game" : "games"} played
                         </p>
                       </div>

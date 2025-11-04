@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Target, BarChart3, User, Edit2, Upload } from "lucide-react";
+import { ArrowLeft, Target, BarChart3, User, Edit2, Upload, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import type { Game, UserStats } from "@shared/schema";
@@ -23,6 +23,7 @@ export default function Profile() {
   const [username, setUsername] = useState("");
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -90,9 +91,36 @@ export default function Profile() {
                 <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 truncate" data-testid="text-profile-name">
                   {user.username || "Player"}
                 </h1>
-                <p className="text-muted-foreground text-xs sm:text-sm truncate font-mono" data-testid="text-profile-wallet">
-                  {user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}
-                </p>
+                <button
+                  onClick={async () => {
+                    if (user.walletAddress) {
+                      try {
+                        await navigator.clipboard.writeText(user.walletAddress);
+                        setCopied(true);
+                        toast({
+                          title: "Copied!",
+                          description: "Wallet address copied to clipboard",
+                        });
+                        setTimeout(() => setCopied(false), 2000);
+                      } catch (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to copy address",
+                          variant: "destructive",
+                        });
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-2 text-muted-foreground text-xs sm:text-sm font-mono hover:text-foreground transition-colors cursor-pointer group"
+                  data-testid="button-copy-wallet"
+                >
+                  <span>{user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}</span>
+                  {copied ? (
+                    <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </button>
               </div>
             </div>
             <Button
