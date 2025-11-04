@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useConnect, useAccount, useSignMessage } from "wagmi";
+import { useConnect, useAccount, useSignMessage, useSwitchChain } from "wagmi";
+import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { UsernameSetup } from "@/components/UsernameSetup";
@@ -16,6 +17,7 @@ export default function Landing() {
   const { connect, connectors, isPending } = useConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { switchChain } = useSwitchChain();
 
   const handleConnectWallet = async () => {
     if (connectors.length === 0) {
@@ -43,26 +45,74 @@ export default function Landing() {
 
       // Connect wallet using Wagmi
       connect(
-        { connector },
+        { connector, chainId: mainnet.id },
         {
           onSuccess: async (data) => {
             const address = data.accounts[0];
             setWalletAddress(address);
+            
+            // Ensure we're on Ethereum mainnet
+            // Note: After connection, we need to check if we need to switch chains
+            // The chainId from useChainId might not update immediately, so we'll try to switch anyway
+            try {
+              await switchChain({ chainId: mainnet.id });
+            } catch (switchError: any) {
+              // If user rejects switch or already on mainnet, continue
+              if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
+                // 4900 = already on the requested chain
+                toast({
+                  title: "Network Switch Required",
+                  description: "Please switch to Ethereum Mainnet in your wallet to continue.",
+                  variant: "destructive",
+                });
+              }
+            }
+            
             await authenticateWithServer(address);
           },
-          onError: (error) => {
+          onError: (error: any) => {
+            console.error("Wallet connection error:", error);
+            let errorMessage = "Failed to connect wallet";
+            
+            if (error?.message) {
+              errorMessage = error.message;
+              // Handle common RPC errors
+              if (error.message.includes("RPC") || error.message.includes("rpc")) {
+                errorMessage = "RPC connection error. Please check your network connection and try again.";
+              } else if (error.message.includes("rejected") || error.message.includes("denied")) {
+                errorMessage = "Connection rejected. Please approve the connection in your wallet.";
+              } else if (error.message.includes("network") || error.message.includes("chain")) {
+                errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
+              }
+            }
+            
             toast({
               title: "Connection Failed",
-              description: error.message || "Failed to connect wallet",
+              description: errorMessage,
               variant: "destructive",
             });
           },
         }
       );
     } catch (error: any) {
+      console.error("Wallet connection error:", error);
+      let errorMessage = "Failed to connect wallet";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+        // Handle common RPC errors
+        if (error.message.includes("RPC") || error.message.includes("rpc")) {
+          errorMessage = "RPC connection error. Please check your network connection and try again.";
+        } else if (error.message.includes("rejected") || error.message.includes("denied")) {
+          errorMessage = "Connection rejected. Please approve the connection in your wallet.";
+        } else if (error.message.includes("network") || error.message.includes("chain")) {
+          errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
+        }
+      }
+      
       toast({
         title: "Connection Failed",
-        description: error.message || "Failed to connect wallet",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -198,6 +248,63 @@ export default function Landing() {
                 <p className="text-center text-xs text-white/60">Available wallets:</p>
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {connectors.map((connector) => {
+                    const handleConnectorClick = async () => {
+                      try {
+                        connect(
+                          { connector, chainId: mainnet.id },
+                          {
+                            onSuccess: async (data) => {
+                              const address = data.accounts[0];
+                              setWalletAddress(address);
+                              
+                              // Ensure we're on Ethereum mainnet
+                              try {
+                                await switchChain({ chainId: mainnet.id });
+                              } catch (switchError: any) {
+                                // If user rejects switch or already on mainnet, continue
+                                if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
+                                  toast({
+                                    title: "Network Switch Required",
+                                    description: "Please switch to Ethereum Mainnet in your wallet to continue.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }
+                              
+                              await authenticateWithServer(address);
+                            },
+                            onError: (error: any) => {
+                              console.error("Wallet connection error:", error);
+                              let errorMessage = "Failed to connect wallet";
+                              
+                              if (error?.message) {
+                                errorMessage = error.message;
+                                if (error.message.includes("RPC") || error.message.includes("rpc")) {
+                                  errorMessage = "RPC connection error. Please check your network connection and try again.";
+                                } else if (error.message.includes("rejected") || error.message.includes("denied")) {
+                                  errorMessage = "Connection rejected. Please approve the connection in your wallet.";
+                                } else if (error.message.includes("network") || error.message.includes("chain")) {
+                                  errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
+                                }
+                              }
+                              
+                              toast({
+                                title: "Connection Failed",
+                                description: errorMessage,
+                                variant: "destructive",
+                              });
+                            },
+                          }
+                        );
+                      } catch (error: any) {
+                        toast({
+                          title: "Connection Failed",
+                          description: error.message || "Failed to connect wallet",
+                          variant: "destructive",
+                        });
+                      }
+                    };
+                    
                     // Map connector to image path
                     const getWalletImage = (connectorId: string, connectorName: string): string | null => {
                       const id = connectorId.toLowerCase();
@@ -258,15 +365,7 @@ export default function Landing() {
                         key={connector.uid}
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          connect({ connector }, {
-                            onSuccess: async (data) => {
-                              const address = data.accounts[0];
-                              setWalletAddress(address);
-                              await authenticateWithServer(address);
-                            },
-                          });
-                        }}
+                        onClick={handleConnectorClick}
                         className="text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 border-white/20 text-white"
                         disabled={isPending}
                       >
