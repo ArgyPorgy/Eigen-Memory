@@ -196,27 +196,91 @@ export default function Landing() {
             {connectors.length > 1 && (
               <div className="space-y-2">
                 <p className="text-center text-xs text-white/60">Available wallets:</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {connectors.map((connector) => (
-                    <Button
-                      key={connector.uid}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        connect({ connector }, {
-                          onSuccess: async (data) => {
-                            const address = data.accounts[0];
-                            setWalletAddress(address);
-                            await authenticateWithServer(address);
-                          },
-                        });
-                      }}
-                      className="text-xs"
-                      disabled={isPending}
-                    >
-                      {connector.name}
-                    </Button>
-                  ))}
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                  {connectors.map((connector) => {
+                    // Map connector to image path
+                    const getWalletImage = (connectorId: string, connectorName: string): string | null => {
+                      const id = connectorId.toLowerCase();
+                      const name = connectorName.toLowerCase();
+                      
+                      if (id === 'metamask' || name.includes('metamask')) {
+                        return '/metamask.jpg';
+                      }
+                      if (id === 'coinbasewallet' || name.includes('coinbase')) {
+                        return '/coinbase.png';
+                      }
+                      if (id === 'okx' || name.includes('okx')) {
+                        return '/okx.jpg';
+                      }
+                      if (id === 'phantom' || name.includes('phantom')) {
+                        return '/phantom.jpg';
+                      }
+                      if (id === 'rabby' || name.includes('rabby')) {
+                        return '/rabby.jpg';
+                      }
+                      // For injected wallets, default to MetaMask if available
+                      if (id === 'injected' || name.includes('injected')) {
+                        return '/metamask.jpg';
+                      }
+                      return null;
+                    };
+
+                    // Clean up display name (remove "injected", etc.)
+                    const getDisplayName = (name: string, connectorId: string): string => {
+                      let displayName = name.replace(/injected/gi, '').trim();
+                      
+                      // Handle specific wallet names better
+                      if (connectorId === 'coinbaseWallet' || displayName.toLowerCase().includes('coinbase')) {
+                        return 'Coinbase';
+                      }
+                      if (connectorId === 'metaMask' || displayName.toLowerCase().includes('metamask')) {
+                        return 'MetaMask';
+                      }
+                      if (connectorId === 'okx' || displayName.toLowerCase().includes('okx')) {
+                        return 'OKX';
+                      }
+                      if (displayName.toLowerCase().includes('phantom')) {
+                        return 'Phantom';
+                      }
+                      if (displayName.toLowerCase().includes('rabby')) {
+                        return 'Rabby';
+                      }
+                      
+                      // If name is empty after removing "injected", return a default
+                      return displayName || 'Wallet';
+                    };
+
+                    const walletImage = getWalletImage(connector.id, connector.name);
+                    const displayName = getDisplayName(connector.name, connector.id);
+
+                    return (
+                      <Button
+                        key={connector.uid}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          connect({ connector }, {
+                            onSuccess: async (data) => {
+                              const address = data.accounts[0];
+                              setWalletAddress(address);
+                              await authenticateWithServer(address);
+                            },
+                          });
+                        }}
+                        className="text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 border-white/20 text-white"
+                        disabled={isPending}
+                      >
+                        {walletImage && (
+                          <img 
+                            src={walletImage} 
+                            alt={displayName}
+                            className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
+                          />
+                        )}
+                        {displayName}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
             )}
