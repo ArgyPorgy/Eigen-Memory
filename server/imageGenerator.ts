@@ -62,26 +62,14 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
       
       <!-- Main content area -->
       <g>
-        <!-- Main title: I just scored [score] points -->
-        <text x="${width / 2}" y="360" 
+        <!-- Single line: I just scored [score] points in Unmatched by EigenTribe -->
+        <text x="${width / 2}" y="420" 
               font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
-              fill="white" text-anchor="middle">I just scored ${totalScore.toLocaleString()} points</text>
-        
-        <!-- Rectangle box under congratulations -->
-        <rect x="${width / 2 - 350}" y="400" width="700" height="140" 
-              rx="16" fill="${boxColor}" />
-        
-        <!-- Score display inside the box (large and bold with special color) -->
-        <text x="${width / 2}" y="480" 
-              font-family="Arial, sans-serif" font-size="72" font-weight="bold" 
-              fill="${scoreColor}" text-anchor="middle">
-          ${totalScore.toLocaleString()}
+              fill="white" text-anchor="middle">
+          <tspan fill="white">I just scored </tspan>
+          <tspan fill="${scoreColor}">${totalScore.toLocaleString()}</tspan>
+          <tspan fill="white"> points in Unmatched by EigenTribe</tspan>
         </text>
-        
-        <!-- CTA: Come play Unmatched by EigenTribe -->
-        <text x="${width / 2}" y="570" 
-              font-family="Arial, sans-serif" font-size="32" font-weight="600" 
-              fill="white" text-anchor="middle">Come play Unmatched by EigenTribe</text>
       </g>
     </svg>
   `;
