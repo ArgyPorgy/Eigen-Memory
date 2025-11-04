@@ -62,14 +62,19 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
       
       <!-- Main content area -->
       <g>
-        <!-- Single line: I just scored [score] points in Unmatched by EigenTribe -->
-        <text x="${width / 2}" y="420" 
+        <!-- First line: I just scored [score] points -->
+        <text x="${width / 2}" y="400" 
               font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
               fill="white" text-anchor="middle">
           <tspan fill="white">I just scored </tspan>
           <tspan fill="${scoreColor}">${totalScore.toLocaleString()}</tspan>
-          <tspan fill="white"> points in Unmatched by EigenTribe</tspan>
+          <tspan fill="white"> points</tspan>
         </text>
+        
+        <!-- Second line: in Unmatched by EigenTribe (with increased line gap) -->
+        <text x="${width / 2}" y="520" 
+              font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
+              fill="white" text-anchor="middle">in Unmatched by EigenTribe</text>
       </g>
     </svg>
   `;
