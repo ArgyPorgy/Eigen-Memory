@@ -19,16 +19,8 @@ export default function Landing() {
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
 
+  // Handle MetaMask connection only (for main button)
   const handleConnectWallet = async () => {
-    if (connectors.length === 0) {
-      toast({
-        title: "Wallet Not Found",
-        description: "Please install MetaMask, Coinbase Wallet, or another EVM-compatible wallet to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsConnecting(true);
     try {
       // If already connected, use the connected address
@@ -38,28 +30,32 @@ export default function Landing() {
         return;
       }
 
-      // Find the best connector (prefer MetaMask, then injected, then first available)
-      const metaMaskConnector = connectors.find(c => c.id === 'metaMask' || c.name === 'MetaMask');
-      const injectedConnector = connectors.find(c => c.id === 'injected');
-      const connector = metaMaskConnector || injectedConnector || connectors[0];
+      // Find MetaMask connector only
+      const metaMaskConnector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+      
+      if (!metaMaskConnector) {
+        toast({
+          title: "MetaMask Not Found",
+          description: "MetaMask is not installed. Please install MetaMask or choose another wallet option below.",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
 
-      // Connect wallet using Wagmi
+      // Connect wallet using Wagmi with MetaMask only
       connect(
-        { connector, chainId: mainnet.id },
+        { connector: metaMaskConnector, chainId: mainnet.id },
         {
           onSuccess: async (data) => {
             const address = data.accounts[0];
             setWalletAddress(address);
             
             // Ensure we're on Ethereum mainnet
-            // Note: After connection, we need to check if we need to switch chains
-            // The chainId from useChainId might not update immediately, so we'll try to switch anyway
             try {
               await switchChain({ chainId: mainnet.id });
             } catch (switchError: any) {
-              // If user rejects switch or already on mainnet, continue
               if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
-                // 4900 = already on the requested chain
                 toast({
                   title: "Network Switch Required",
                   description: "Please switch to Ethereum Mainnet in your wallet to continue.",
@@ -76,7 +72,6 @@ export default function Landing() {
             
             if (error?.message) {
               errorMessage = error.message;
-              // Handle common RPC errors
               if (error.message.includes("RPC") || error.message.includes("rpc")) {
                 errorMessage = "RPC connection error. Please check your network connection and try again.";
               } else if (error.message.includes("rejected") || error.message.includes("denied")) {
@@ -96,23 +91,106 @@ export default function Landing() {
       );
     } catch (error: any) {
       console.error("Wallet connection error:", error);
-      let errorMessage = "Failed to connect wallet";
-      
-      if (error?.message) {
-        errorMessage = error.message;
-        // Handle common RPC errors
-        if (error.message.includes("RPC") || error.message.includes("rpc")) {
-          errorMessage = "RPC connection error. Please check your network connection and try again.";
-        } else if (error.message.includes("rejected") || error.message.includes("denied")) {
-          errorMessage = "Connection rejected. Please approve the connection in your wallet.";
-        } else if (error.message.includes("network") || error.message.includes("chain")) {
-          errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
-        }
-      }
-      
       toast({
         title: "Connection Failed",
-        description: errorMessage,
+        description: error.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Handle individual wallet connection
+  const handleWalletConnect = async (walletId: string) => {
+    setIsConnecting(true);
+    try {
+      let connector = null;
+      
+      // Find the appropriate connector
+      if (walletId === 'metamask') {
+        connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+      } else if (walletId === 'coinbase') {
+        connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
+      } else if (walletId === 'okx') {
+        connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
+      } else if (walletId === 'phantom') {
+        connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
+      } else if (walletId === 'rabby') {
+        connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
+      }
+
+      if (!connector) {
+        // Wallet not installed - show install prompt
+        const walletInfo = {
+          metamask: { name: 'MetaMask', url: 'https://metamask.io/download/' },
+          coinbase: { name: 'Coinbase Wallet', url: 'https://www.coinbase.com/wallet' },
+          okx: { name: 'OKX Wallet', url: 'https://www.okx.com/web3' },
+          phantom: { name: 'Phantom', url: 'https://phantom.app/' },
+          rabby: { name: 'Rabby', url: 'https://rabby.io/' },
+        };
+        
+        const info = walletInfo[walletId as keyof typeof walletInfo];
+        toast({
+          title: `${info.name} Not Installed`,
+          description: `Please install ${info.name} to continue. Visit ${info.url} to get started.`,
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
+
+      // Connect wallet
+      connect(
+        { connector, chainId: mainnet.id },
+        {
+          onSuccess: async (data) => {
+            const address = data.accounts[0];
+            setWalletAddress(address);
+            
+            // Ensure we're on Ethereum mainnet
+            try {
+              await switchChain({ chainId: mainnet.id });
+            } catch (switchError: any) {
+              if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
+                toast({
+                  title: "Network Switch Required",
+                  description: "Please switch to Ethereum Mainnet in your wallet to continue.",
+                  variant: "destructive",
+                });
+              }
+            }
+            
+            await authenticateWithServer(address);
+          },
+          onError: (error: any) => {
+            console.error("Wallet connection error:", error);
+            let errorMessage = "Failed to connect wallet";
+            
+            if (error?.message) {
+              errorMessage = error.message;
+              if (error.message.includes("RPC") || error.message.includes("rpc")) {
+                errorMessage = "RPC connection error. Please check your network connection and try again.";
+              } else if (error.message.includes("rejected") || error.message.includes("denied")) {
+                errorMessage = "Connection rejected. Please approve the connection in your wallet.";
+              } else if (error.message.includes("network") || error.message.includes("chain")) {
+                errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
+              }
+            }
+            
+            toast({
+              title: "Connection Failed",
+              description: errorMessage,
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error("Wallet connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect wallet",
         variant: "destructive",
       });
     } finally {
@@ -219,170 +297,35 @@ export default function Landing() {
               </Button>
             </div>
 
-            {connectors.length === 0 && (
-              <p className="text-center text-sm text-white/70">
-                Don't have a wallet?{" "}
-                <a
-                  href="https://metamask.io/download/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-white"
-                >
-                  Get MetaMask
-                </a>
-                {" or "}
-                <a
-                  href="https://www.coinbase.com/wallet"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-white"
-                >
-                  Coinbase Wallet
-                </a>
-              </p>
-            )}
-
-            {/* Show available connectors if multiple wallets are detected */}
-            {connectors.length > 1 && (
-              <div className="space-y-2">
-                <p className="text-center text-xs text-white/60">Available wallets:</p>
-                <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                  {connectors.map((connector) => {
-                    const handleConnectorClick = async () => {
-                      try {
-                        connect(
-                          { connector, chainId: mainnet.id },
-                          {
-                            onSuccess: async (data) => {
-                              const address = data.accounts[0];
-                              setWalletAddress(address);
-                              
-                              // Ensure we're on Ethereum mainnet
-                              try {
-                                await switchChain({ chainId: mainnet.id });
-                              } catch (switchError: any) {
-                                // If user rejects switch or already on mainnet, continue
-                                if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
-                                  toast({
-                                    title: "Network Switch Required",
-                                    description: "Please switch to Ethereum Mainnet in your wallet to continue.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }
-                              
-                              await authenticateWithServer(address);
-                            },
-                            onError: (error: any) => {
-                              console.error("Wallet connection error:", error);
-                              let errorMessage = "Failed to connect wallet";
-                              
-                              if (error?.message) {
-                                errorMessage = error.message;
-                                if (error.message.includes("RPC") || error.message.includes("rpc")) {
-                                  errorMessage = "RPC connection error. Please check your network connection and try again.";
-                                } else if (error.message.includes("rejected") || error.message.includes("denied")) {
-                                  errorMessage = "Connection rejected. Please approve the connection in your wallet.";
-                                } else if (error.message.includes("network") || error.message.includes("chain")) {
-                                  errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
-                                }
-                              }
-                              
-                              toast({
-                                title: "Connection Failed",
-                                description: errorMessage,
-                                variant: "destructive",
-                              });
-                            },
-                          }
-                        );
-                      } catch (error: any) {
-                        toast({
-                          title: "Connection Failed",
-                          description: error.message || "Failed to connect wallet",
-                          variant: "destructive",
-                        });
-                      }
-                    };
-                    
-                    // Map connector to image path
-                    const getWalletImage = (connectorId: string, connectorName: string): string | null => {
-                      const id = connectorId.toLowerCase();
-                      const name = connectorName.toLowerCase();
-                      
-                      if (id === 'metamask' || name.includes('metamask')) {
-                        return '/metamask.jpg';
-                      }
-                      if (id === 'coinbasewallet' || name.includes('coinbase')) {
-                        return '/coinbase.png';
-                      }
-                      if (id === 'okx' || name.includes('okx')) {
-                        return '/okx.jpg';
-                      }
-                      if (id === 'phantom' || name.includes('phantom')) {
-                        return '/phantom.jpg';
-                      }
-                      if (id === 'rabby' || name.includes('rabby')) {
-                        return '/rabby.jpg';
-                      }
-                      // For injected wallets, default to MetaMask if available
-                      if (id === 'injected' || name.includes('injected')) {
-                        return '/metamask.jpg';
-                      }
-                      return null;
-                    };
-
-                    // Clean up display name (remove "injected", etc.)
-                    const getDisplayName = (name: string, connectorId: string): string => {
-                      let displayName = name.replace(/injected/gi, '').trim();
-                      
-                      // Handle specific wallet names better
-                      if (connectorId === 'coinbaseWallet' || displayName.toLowerCase().includes('coinbase')) {
-                        return 'Coinbase';
-                      }
-                      if (connectorId === 'metaMask' || displayName.toLowerCase().includes('metamask')) {
-                        return 'MetaMask';
-                      }
-                      if (connectorId === 'okx' || displayName.toLowerCase().includes('okx')) {
-                        return 'OKX';
-                      }
-                      if (displayName.toLowerCase().includes('phantom')) {
-                        return 'Phantom';
-                      }
-                      if (displayName.toLowerCase().includes('rabby')) {
-                        return 'Rabby';
-                      }
-                      
-                      // If name is empty after removing "injected", return a default
-                      return displayName || 'Wallet';
-                    };
-
-                    const walletImage = getWalletImage(connector.id, connector.name);
-                    const displayName = getDisplayName(connector.name, connector.id);
-
-                    return (
-                      <Button
-                        key={connector.uid}
-                        variant="outline"
-                        size="sm"
-                        onClick={handleConnectorClick}
-                        className="text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 border-white/20 text-white"
-                        disabled={isPending}
-                      >
-                        {walletImage && (
-                          <img 
-                            src={walletImage} 
-                            alt={displayName}
-                            className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
-                          />
-                        )}
-                        {displayName}
-                      </Button>
-                    );
-                  })}
-                </div>
+            {/* Always show all wallet options */}
+            <div className="space-y-2">
+              <p className="text-center text-xs text-white/60">Or connect with:</p>
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                {[
+                  { id: 'metamask', name: 'MetaMask', image: '/metamask.jpg' },
+                  { id: 'coinbase', name: 'Coinbase', image: '/coinbase.png' },
+                  { id: 'okx', name: 'OKX', image: '/okx.jpg' },
+                  { id: 'phantom', name: 'Phantom', image: '/phantom.jpg' },
+                  { id: 'rabby', name: 'Rabby', image: '/rabby.jpg' },
+                ].map((wallet) => (
+                  <Button
+                    key={wallet.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleWalletConnect(wallet.id)}
+                    className="text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 border-white/20 text-white"
+                    disabled={isConnecting || isPending}
+                  >
+                    <img 
+                      src={wallet.image} 
+                      alt={wallet.name}
+                      className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
+                    />
+                    {wallet.name}
+                  </Button>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
