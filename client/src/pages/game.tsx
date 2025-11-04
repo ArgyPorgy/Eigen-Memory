@@ -150,11 +150,11 @@ export default function Game() {
       if (isUnauthorizedError(error as Error)) {
         toast({
           title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          description: "You are logged out. Please connect your wallet.",
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/auth/google";
+          window.location.href = "/";
         }, 500);
         return;
       }
