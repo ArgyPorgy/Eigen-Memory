@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { connectWallet, signMessage, isMetaMaskInstalled } from "@/lib/wallet";
+import { connectWallet, signMessage, isWalletInstalled, getWalletName } from "@/lib/wallet";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { UsernameSetup } from "@/components/UsernameSetup";
@@ -14,10 +14,10 @@ export default function Landing() {
   const queryClient = useQueryClient();
 
   const handleConnectWallet = async () => {
-    if (!isMetaMaskInstalled()) {
+    if (!isWalletInstalled()) {
       toast({
-        title: "MetaMask Not Found",
-        description: "Please install MetaMask to continue. Visit metamask.io to get started.",
+        title: "Wallet Not Found",
+        description: "Please install MetaMask, Coinbase Wallet, or another EVM-compatible wallet to continue.",
         variant: "destructive",
       });
       return;
@@ -25,7 +25,8 @@ export default function Landing() {
 
     setIsConnecting(true);
     try {
-      // Connect wallet and switch to mainnet
+      // Always request accounts explicitly - this will show popup if permissions were revoked
+      // If wallet is already connected, it will return immediately but signature will still show popup
       const address = await connectWallet();
       setWalletAddress(address);
 
@@ -120,16 +121,25 @@ export default function Landing() {
               </Button>
             </div>
 
-            {!isMetaMaskInstalled() && (
+            {!isWalletInstalled() && (
               <p className="text-center text-sm text-white/70">
-                Don't have MetaMask?{" "}
+                Don't have a wallet?{" "}
                 <a
                   href="https://metamask.io/download/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-white"
                 >
-                  Download here
+                  Get MetaMask
+                </a>
+                {" or "}
+                <a
+                  href="https://www.coinbase.com/wallet"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-white"
+                >
+                  Coinbase Wallet
                 </a>
               </p>
             )}

@@ -420,6 +420,10 @@ export default function Game() {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
+                  // Disconnect wallet first
+                  const { disconnectWallet } = await import("@/lib/wallet");
+                  await disconnectWallet();
+                  // Then logout from server
                   await fetch("/api/logout", { credentials: "include" });
                   window.location.href = "/";
                 }}
