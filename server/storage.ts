@@ -10,13 +10,15 @@ import {
   type UserStats,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, ne } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByWalletAddress(walletAddress: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   // Game operations
@@ -40,6 +42,28 @@ export class DatabaseStorage implements IStorage {
   async getUserByWalletAddress(walletAddress: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.walletAddress, walletAddress.toLowerCase()));
     return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username.trim().toLowerCase()));
+    return user;
+  }
+
+  async isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+    const trimmedUsername = username.trim().toLowerCase();
+    const conditions = [eq(users.username, trimmedUsername)];
+    
+    // Exclude current user if updating their own username
+    if (excludeUserId) {
+      conditions.push(ne(users.id, excludeUserId));
+    }
+    
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(and(...conditions));
+    
+    return !existingUser;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {

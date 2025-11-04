@@ -215,9 +215,11 @@ export async function setupAuth(app: Express) {
         }
       }
 
-      // Check if username is taken
-      const allUsers = await storage.getUserByWalletAddress(walletAddress);
-      // Note: We need to add a check for username uniqueness - for now, we'll let the DB handle it
+      // Check if username is already taken
+      const usernameAvailable = await storage.isUsernameAvailable(username.trim());
+      if (!usernameAvailable) {
+        return res.status(400).json({ message: "Username already taken. Please choose a different username." });
+      }
 
       // Create user
       const user = await storage.upsertUser({

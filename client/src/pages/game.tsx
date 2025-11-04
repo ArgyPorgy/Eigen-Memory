@@ -124,7 +124,7 @@ export default function Game() {
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [score, setScore] = useState(0);
   const [matches, setMatches] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(90); // 1:30 minutes in seconds
   const [isGameActive, setIsGameActive] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
@@ -190,7 +190,7 @@ export default function Game() {
     setFlippedIndices([]);
     setScore(0);
     setMatches(0);
-    setTimeRemaining(180);
+    setTimeRemaining(90);
     setIsGameActive(true);
     setIsGameOver(false);
     setIsGameWon(false);
@@ -466,7 +466,7 @@ export default function Game() {
                 size="default"
                 onClick={() => {
                   setIsGameActive(true);
-                  setTimeRemaining(180);
+                  setTimeRemaining(90);
                 }}
                 className="px-6 sm:px-8 w-full sm:w-auto"
                 data-testid="button-start"
@@ -493,7 +493,7 @@ export default function Game() {
                     {formatTime(timeRemaining)}
                   </p>
                   <Progress 
-                    value={(timeRemaining / 180) * 100} 
+                    value={(timeRemaining / 90) * 100} 
                     className="h-1.5 sm:h-2"
                   />
                 </Card>

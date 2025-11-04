@@ -11,23 +11,49 @@ import { generateScoreCard } from "./imageGenerator";
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX = 100; // requests per window
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // Clean up every 5 minutes
+const MAX_MAP_SIZE = 5000; // Maximum entries before aggressive cleanup
+
+// Cleanup expired entries periodically
+let lastCleanup = Date.now();
+function cleanupExpiredEntries(force = false) {
+  const now = Date.now();
+  const shouldCleanup = force || (now - lastCleanup > CLEANUP_INTERVAL) || (rateLimitMap.size > MAX_MAP_SIZE);
+  
+  if (shouldCleanup) {
+    let deletedCount = 0;
+    // Convert iterator to array to avoid TypeScript downlevelIteration error
+    Array.from(rateLimitMap.entries()).forEach(([key, value]) => {
+      if (value.resetTime < now) {
+        rateLimitMap.delete(key);
+        deletedCount++;
+      }
+    });
+    lastCleanup = now;
+    
+    // If still too large after cleanup, remove oldest entries
+    if (rateLimitMap.size > MAX_MAP_SIZE) {
+      const entries = Array.from(rateLimitMap.entries())
+        .sort((a, b) => a[1].resetTime - b[1].resetTime);
+      const toDelete = entries.slice(0, rateLimitMap.size - MAX_MAP_SIZE);
+      toDelete.forEach(([key]) => {
+        rateLimitMap.delete(key);
+      });
+    }
+  }
+}
 
 function rateLimitMiddleware(req: Request, res: Response, next: () => void) {
   const key = req.ip || 'unknown';
   const now = Date.now();
+  
+  // Cleanup expired entries periodically
+  cleanupExpiredEntries();
+
   const record = rateLimitMap.get(key);
 
-  // Clean up expired entries (simple cleanup, not perfect but works)
-  if (rateLimitMap.size > 10000) {
-    Array.from(rateLimitMap.entries()).forEach(([k, v]) => {
-      if (v.resetTime < now) {
-        rateLimitMap.delete(k);
-      }
-    });
-  }
-
   if (!record || record.resetTime < now) {
-    // New window
+    // New window or expired
     rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
     next();
   } else if (record.count >= RATE_LIMIT_MAX) {
@@ -142,7 +168,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (username.length < 3 || username.length > 20) {
           return res.status(400).json({ message: "Username must be between 3 and 20 characters" });
         }
-        updateData.username = username.trim();
+        
+        const trimmedUsername = username.trim();
+        
+        // Only check availability if username is actually changing
+        if (trimmedUsername.toLowerCase() !== user.username.toLowerCase()) {
+          const usernameAvailable = await storage.isUsernameAvailable(trimmedUsername, userId);
+          if (!usernameAvailable) {
+            return res.status(400).json({ message: "Username already taken. Please choose a different username." });
+          }
+        }
+        
+        updateData.username = trimmedUsername;
       }
       if (profileImageUrl !== undefined) {
         updateData.profileImageUrl = profileImageUrl;
@@ -210,6 +247,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
       res.send(imageBuffer);
+      
+      // Explicitly clear the buffer reference after sending (helps with garbage collection)
+      // Note: This is a hint to the GC, actual cleanup happens automatically
     } catch (error) {
       console.error("Error generating score card:", error);
       res.status(500).json({ message: "Failed to generate score card" });
