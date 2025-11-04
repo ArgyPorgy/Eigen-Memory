@@ -24,14 +24,12 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+// User storage table - updated for wallet authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  walletAddress: varchar("wallet_address").unique().notNull(), // Ethereum wallet address
+  username: varchar("username").unique().notNull(), // Required username
+  profileImageUrl: varchar("profile_image_url"), // Optional profile picture
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -73,9 +71,8 @@ export type Game = typeof games.$inferSelect;
 // Leaderboard entry type (aggregated from games)
 export type LeaderboardEntry = {
   userId: string;
-  email: string | null;
-  firstName: string | null;
-  lastName: string | null;
+  walletAddress: string;
+  username: string;
   profileImageUrl: string | null;
   totalPoints: number;
   gamesPlayed: number;

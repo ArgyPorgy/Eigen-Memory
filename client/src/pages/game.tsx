@@ -376,8 +376,8 @@ export default function Game() {
   // Handle Twitter share
   const handleTwitterShare = () => {
     const gameUrl = window.location.origin;
-    const scoreCardUrl = `${gameUrl}/api/score-card?firstName=${encodeURIComponent(user?.firstName || 'Player')}&totalScore=${finalTotal}&baseScore=${finalScore}&bonus=${finalBonus}`;
-    const tweetText = `GM \n\nI just scored ${finalTotal} points playing Unmatched by EigenTribe!\n\nCheck out my score: ${scoreCardUrl}\n\nYou should try it too: ${gameUrl}\n\n#unmatched`;
+    const scoreCardUrl = `${gameUrl}/api/score-card?username=${encodeURIComponent(user?.username || 'Player')}&totalScore=${finalTotal}&baseScore=${finalScore}&bonus=${finalBonus}`;
+    const tweetText = `GM \n\nI just scored ${finalTotal} points playing Mismatched by EigenTribe!\n\nCheck out my score: ${scoreCardUrl}\n\nYou should try it too: ${gameUrl}\n\n#mismatched`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
     window.open(twitterUrl, '_blank', 'noopener,noreferrer');
   };
@@ -397,34 +397,37 @@ export default function Game() {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-10 w-10 border-2 border-primary">
+        <div className="max-w-7xl mx-auto px-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border-2 border-primary flex-shrink-0">
                 <AvatarImage src={user?.profileImageUrl || undefined} alt="Profile" />
                 <AvatarFallback>
-                  <User className="h-5 w-5" />
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Playing as</p>
-                <p className="font-semibold" data-testid="text-username">
-                  {user?.firstName || user?.email || "Player"}
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide truncate">Playing as</p>
+                <p className="font-semibold text-sm sm:text-base truncate" data-testid="text-username">
+                  {user?.username || "Player"}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
               <Navigation />
-              <Separator orientation="vertical" className="h-6" />
+              <Separator orientation="vertical" className="h-4 sm:h-6" />
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.location.href = "/api/logout"}
+                onClick={async () => {
+                  await fetch("/api/logout", { credentials: "include" });
+                  window.location.href = "/";
+                }}
                 data-testid="button-logout"
-                className="hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                className="hover:text-red-500 hover:bg-red-500/10 transition-colors px-2 sm:px-3"
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+                <LogOut className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
               </Button>
             </div>
           </div>
@@ -432,26 +435,26 @@ export default function Game() {
       </header>
 
       {/* Main Game Area */}
-      <main className="flex-1 p-6 flex flex-col items-center justify-center">
-        <div className="max-w-4xl w-full space-y-8">
+      <main className="flex-1 p-3 sm:p-6 flex flex-col items-center justify-center">
+        <div className="max-w-4xl w-full space-y-4 sm:space-y-8">
           {/* Loading State */}
           {!imagesLoaded && (
-            <Card className="p-8 text-center space-y-6 border-2 border-primary/20">
-              <div className="space-y-4">
-                <Zap className="w-16 h-16 mx-auto animate-pulse text-primary" />
-                <h2 className="text-2xl font-bold">Loading Game...</h2>
-                <p className="text-muted-foreground">Preparing tiles</p>
+            <Card className="p-6 sm:p-8 text-center space-y-4 sm:space-y-6 border-2 border-primary/20">
+              <div className="space-y-3 sm:space-y-4">
+                <Zap className="w-12 h-12 sm:w-16 sm:h-16 mx-auto animate-pulse text-primary" />
+                <h2 className="text-xl sm:text-2xl font-bold">Loading Game...</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">Preparing tiles</p>
               </div>
             </Card>
           )}
 
           {/* Start Game Button */}
           {imagesLoaded && !isGameActive && !isGameOver && !isGameWon && (
-            <Card className="p-8 text-center space-y-6 border-2 border-primary/20">
+            <Card className="p-6 sm:p-8 text-center space-y-4 sm:space-y-6 border-2 border-primary/20">
               <div className="space-y-2">
-                <img src="/Variant7.svg" alt="Ready to Play" className="w-16 h-16 mx-auto" />
-                <h2 className="text-3xl font-bold">Ready to Play?</h2>
-                <p className="text-muted-foreground text-lg">Match all 8 pairs before time runs out!</p>
+                <img src="/Variant7.svg" alt="Ready to Play" className="w-12 h-12 sm:w-16 sm:h-16 mx-auto" />
+                <h2 className="text-2xl sm:text-3xl font-bold">Ready to Play?</h2>
+                <p className="text-muted-foreground text-base sm:text-lg">Match all 8 pairs before time runs out!</p>
               </div>
               <Button
                 size="default"
@@ -459,7 +462,7 @@ export default function Game() {
                   setIsGameActive(true);
                   setTimeRemaining(180);
                 }}
-                className="px-8"
+                className="px-6 sm:px-8 w-full sm:w-auto"
                 data-testid="button-start"
               >
             
@@ -471,46 +474,46 @@ export default function Game() {
           {/* Stats Panel */}
           {isGameActive && (
             <>
-              <div className="grid grid-cols-3 gap-4">
-                <Card className="p-6 text-center space-y-3" data-testid="card-timer">
-                  <div className="flex items-center justify-center gap-2">
-                    <Clock className={`w-5 h-5 ${timeRemaining <= 30 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`} />
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Time</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <Card className="p-3 sm:p-6 text-center space-y-2 sm:space-y-3" data-testid="card-timer">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2">
+                    <Clock className={`w-4 h-4 sm:w-5 sm:h-5 ${timeRemaining <= 30 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`} />
+                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">Time</p>
                   </div>
                   <p 
-                    className={`text-4xl font-bold font-mono ${timeRemaining <= 30 ? 'text-destructive' : ''}`}
+                    className={`text-2xl sm:text-4xl font-bold font-mono ${timeRemaining <= 30 ? 'text-destructive' : ''}`}
                     data-testid="text-time-remaining"
                   >
                     {formatTime(timeRemaining)}
                   </p>
                   <Progress 
                     value={(timeRemaining / 180) * 100} 
-                    className="h-2"
+                    className="h-1.5 sm:h-2"
                   />
                 </Card>
-                <Card className="p-6 text-center space-y-3" data-testid="card-score">
-                  <div className="flex items-center justify-center gap-2">
-                    <img src="/score.svg" alt="Score" className="w-5 h-5" />
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
+                <Card className="p-3 sm:p-6 text-center space-y-2 sm:space-y-3" data-testid="card-score">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2">
+                    <img src="/score.svg" alt="Score" className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">Score</p>
                   </div>
-                  <p className="text-4xl font-bold font-mono text-primary" data-testid="text-score">
+                  <p className="text-2xl sm:text-4xl font-bold font-mono text-primary" data-testid="text-score">
                     {score}
                   </p>
-                  <Badge variant="secondary" className="w-full justify-center">
+                  <Badge variant="secondary" className="w-full justify-center text-[10px] sm:text-xs py-0.5 sm:py-1">
                     Potential: {potentialTotal}
                   </Badge>
                 </Card>
-                <Card className="p-6 text-center space-y-3" data-testid="card-matches">
-                  <div className="flex items-center justify-center gap-2">
-                    <Target className="w-5 h-5 text-primary" />
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Matches</p>
+                <Card className="p-3 sm:p-6 text-center space-y-2 sm:space-y-3" data-testid="card-matches">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2">
+                    <Target className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">Matches</p>
                   </div>
-                  <p className="text-4xl font-bold font-mono" data-testid="text-matches">
+                  <p className="text-2xl sm:text-4xl font-bold font-mono" data-testid="text-matches">
                     {matches}/8
                   </p>
                   <Progress 
                     value={(matches / 8) * 100} 
-                    className="h-2"
+                    className="h-1.5 sm:h-2"
                   />
                 </Card>
               </div>
@@ -519,8 +522,8 @@ export default function Game() {
 
           {/* Game Board */}
           {imagesLoaded && (
-            <Card className="p-8">
-              <div className="grid grid-cols-4 gap-3 max-w-xl mx-auto">
+            <Card className="p-4 sm:p-8">
+              <div className="grid grid-cols-4 gap-2 sm:gap-3 max-w-xl mx-auto">
                 {tiles.map((tile, index) => {
                 return (
                   <button
@@ -544,7 +547,7 @@ export default function Game() {
                       <img 
                         src={tile.symbol.image}
                         alt="Tile"
-                        className="w-24 h-24 md:w-28 md:h-28 object-contain"
+                        className="w-12 h-12 sm:w-16 sm:h-16 md:w-24 md:h-24 object-contain"
                         loading="eager"
                         decoding="sync"
                         draggable={false}
@@ -563,23 +566,23 @@ export default function Game() {
           {/* Game Over Messages */}
 
           {imagesLoaded && isGameOver && !isGameWon && (
-            <Card className="p-8 text-center space-y-6 border-2 border-destructive bg-destructive/5" data-testid="card-game-over">
+            <Card className="p-6 sm:p-8 text-center space-y-4 sm:space-y-6 border-2 border-destructive bg-destructive/5" data-testid="card-game-over">
               <div className="space-y-2">
-                <Clock className="w-16 h-16 text-destructive mx-auto" />
-                <h2 className="text-4xl font-bold">Time's Up!</h2>
-                <p className="text-muted-foreground text-lg">Better luck next time!</p>
+                <Clock className="w-12 h-12 sm:w-16 sm:h-16 text-destructive mx-auto" />
+                <h2 className="text-3xl sm:text-4xl font-bold">Time's Up!</h2>
+                <p className="text-muted-foreground text-base sm:text-lg">Better luck next time!</p>
               </div>
               <Separator />
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-                  <span className="text-muted-foreground">Matches Found:</span>
-                  <Badge variant="secondary" className="text-lg px-4 py-2">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-card rounded-lg">
+                  <span className="text-sm sm:text-base text-muted-foreground">Matches Found:</span>
+                  <Badge variant="secondary" className="text-base sm:text-lg px-3 sm:px-4 py-1.5 sm:py-2">
                     {matches}/8
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-                  <span className="text-muted-foreground">Final Score:</span>
-                  <Badge variant="outline" className="text-lg px-4 py-2">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-card rounded-lg">
+                  <span className="text-sm sm:text-base text-muted-foreground">Final Score:</span>
+                  <Badge variant="outline" className="text-base sm:text-lg px-3 sm:px-4 py-1.5 sm:py-2">
                     {score}
                   </Badge>
                 </div>
@@ -587,7 +590,7 @@ export default function Game() {
               <Button
                 size="lg"
                 onClick={initializeGame}
-                className="rounded-full"
+                className="rounded-full w-full sm:w-auto"
                 data-testid="button-try-again"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -602,7 +605,7 @@ export default function Game() {
               <Button
                 variant="outline"
                 onClick={initializeGame}
-                className="rounded-full"
+                className="rounded-full w-full sm:w-auto"
                 data-testid="button-new-game"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -615,34 +618,34 @@ export default function Game() {
 
       {/* Win Dialog */}
       <Dialog open={showWinDialog} onOpenChange={() => {/* Prevent closing on outside click */}}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden">
+        <DialogContent className="sm:max-w-md mx-4 [&>button]:hidden">
           <DialogHeader>
-            <img src="/Achievement.svg" alt="Achievement" className="w-20 h-20 mx-auto mb-4 animate-bounce" />
-            <DialogTitle className="text-center text-3xl">
+            <img src="/Achievement.svg" alt="Achievement" className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4 animate-bounce" />
+            <DialogTitle className="text-center text-2xl sm:text-3xl">
               Congratulations!
             </DialogTitle>
-            <DialogDescription className="text-center pt-2 text-base">
+            <DialogDescription className="text-center pt-2 text-sm sm:text-base">
               You matched all pairs!
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-              <span className="text-muted-foreground">Base Score:</span>
-              <Badge variant="secondary" className="text-lg px-4 py-2">
+          <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between p-3 sm:p-4 bg-card rounded-lg">
+              <span className="text-sm sm:text-base text-muted-foreground">Base Score:</span>
+              <Badge variant="secondary" className="text-base sm:text-lg px-3 sm:px-4 py-1.5 sm:py-2">
                 {finalScore}
               </Badge>
             </div>
-            <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-              <span className="text-muted-foreground">Time Bonus:</span>
-              <Badge variant="outline" className="text-lg px-4 py-2">
+            <div className="flex items-center justify-between p-3 sm:p-4 bg-card rounded-lg">
+              <span className="text-sm sm:text-base text-muted-foreground">Time Bonus:</span>
+              <Badge variant="outline" className="text-base sm:text-lg px-3 sm:px-4 py-1.5 sm:py-2">
                 +{finalBonus}
               </Badge>
             </div>
             <Separator />
-            <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg">
-              <span className="text-lg font-semibold">Total Points:</span>
-              <Badge variant="default" className="text-xl px-5 py-3">
+            <div className="flex items-center justify-between p-3 sm:p-4 bg-primary/10 rounded-lg">
+              <span className="text-base sm:text-lg font-semibold">Total Points:</span>
+              <Badge variant="default" className="text-lg sm:text-xl px-4 sm:px-5 py-2 sm:py-3">
                 {finalTotal}
               </Badge>
             </div>

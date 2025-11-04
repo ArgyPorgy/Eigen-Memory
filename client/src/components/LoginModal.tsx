@@ -85,16 +85,16 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mx-4">
         <DialogHeader>
-          <DialogTitle>Login to Play</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Login to Play</DialogTitle>
+          <DialogDescription className="text-sm sm:text-base">
             Enter your email to receive a verification code
           </DialogDescription>
         </DialogHeader>
 
         {step === "email" ? (
-          <form onSubmit={handleSendCode} className="space-y-4">
+          <form onSubmit={handleSendCode} className="space-y-3 sm:space-y-4">
             <Input
               type="email"
               placeholder="your@email.com"
@@ -102,17 +102,18 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
+              className="text-sm sm:text-base"
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full text-sm sm:text-base" disabled={isLoading}>
               {isLoading ? "Sending..." : "Send Verification Code"}
             </Button>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               In development, check your server console for the code
             </p>
           </form>
         ) : (
-          <form onSubmit={handleVerifyCode} className="space-y-4">
-            <p className="text-sm">
+          <form onSubmit={handleVerifyCode} className="space-y-3 sm:space-y-4">
+            <p className="text-xs sm:text-sm">
               A verification code has been sent to <strong>{email}</strong>
             </p>
             <Input
@@ -123,13 +124,13 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               maxLength={6}
               required
               disabled={isLoading}
-              className="text-center text-2xl tracking-widest"
+              className="text-center text-xl sm:text-2xl tracking-widest"
             />
             <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
+                className="flex-1 text-sm sm:text-base"
                 onClick={() => {
                   setStep("email");
                   setCode("");
@@ -138,14 +139,14 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               >
                 Back
               </Button>
-              <Button type="submit" className="flex-1" disabled={isLoading}>
+              <Button type="submit" className="flex-1 text-sm sm:text-base" disabled={isLoading}>
                 {isLoading ? "Verifying..." : "Verify"}
               </Button>
             </div>
             <Button
               type="button"
               variant="ghost"
-              className="w-full text-sm"
+              className="w-full text-xs sm:text-sm"
               onClick={handleSendCode}
               disabled={isLoading}
             >

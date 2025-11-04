@@ -16,7 +16,7 @@ import { eq, desc, sql } from "drizzle-orm";
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByWalletAddress(walletAddress: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   // Game operations
@@ -37,19 +37,24 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+  async getUserByWalletAddress(walletAddress: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.walletAddress, walletAddress.toLowerCase()));
     return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Ensure wallet address is lowercase
+    const normalizedData = {
+      ...userData,
+      walletAddress: userData.walletAddress?.toLowerCase(),
+    };
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(normalizedData)
       .onConflictDoUpdate({
-        target: users.id,
+        target: users.walletAddress,
         set: {
-          ...userData,
+          ...normalizedData,
           updatedAt: new Date(),
         },
       })
@@ -80,9 +85,8 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         userId: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
+        walletAddress: users.walletAddress,
+        username: users.username,
         profileImageUrl: users.profileImageUrl,
         totalPoints: sql<number>`SUM(${games.totalPoints})`.as('total_points'),
         gamesPlayed: sql<number>`COUNT(${games.id})`.as('games_played'),

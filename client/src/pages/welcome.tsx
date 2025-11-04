@@ -22,10 +22,10 @@ export default function Welcome() {
   }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Card className="p-8 w-full max-w-md space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="p-6 sm:p-8 w-full max-w-md space-y-4 sm:space-y-6">
         <div className="text-center space-y-4">
-          <Zap className="w-16 h-16 text-primary mx-auto animate-pulse" />
+          <Zap className="w-12 h-12 sm:w-16 sm:h-16 text-primary mx-auto animate-pulse" />
         </div>
         <Progress value={progress} className="w-full" />
       </Card>

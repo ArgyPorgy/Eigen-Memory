@@ -2,7 +2,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./googleAuth";
+import { setupAuth, isAuthenticated } from "./walletAuth";
 import { insertGameSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { generateScoreCard } from "./imageGenerator";
@@ -126,17 +126,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update profile (username and profile picture)
+  app.put("/api/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = String((req.user as any).id);
+      const { username, profileImageUrl } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const updateData: any = {};
+      if (username !== undefined) {
+        if (username.length < 3 || username.length > 20) {
+          return res.status(400).json({ message: "Username must be between 3 and 20 characters" });
+        }
+        updateData.username = username.trim();
+      }
+      if (profileImageUrl !== undefined) {
+        updateData.profileImageUrl = profileImageUrl;
+      }
+
+      const updatedUser = await storage.upsertUser({
+        ...user,
+        ...updateData,
+      });
+      
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      if (error.code === '23505') { // PostgreSQL unique violation
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Upload profile picture (expects base64 or URL)
+  app.post("/api/profile/upload-picture", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = String((req.user as any).id);
+      const { imageUrl } = req.body;
+      
+      if (!imageUrl) {
+        return res.status(400).json({ message: "Image URL required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const updatedUser = await storage.upsertUser({
+        ...user,
+        profileImageUrl: imageUrl,
+      });
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      res.status(500).json({ message: "Failed to upload profile picture" });
+    }
+  });
+
   // Generate score card image (PNG endpoint)
   app.get("/api/score-card.png", async (req: any, res) => {
     try {
-      const { firstName, totalScore, baseScore, bonus } = req.query;
+      const { username, totalScore, baseScore, bonus } = req.query;
       
-      if (!firstName || !totalScore || !baseScore || !bonus) {
+      if (!username || !totalScore || !baseScore || !bonus) {
         return res.status(400).json({ message: "Missing required parameters" });
       }
       
       const imageBuffer = await generateScoreCard({
-        firstName: String(firstName),
+        firstName: String(username),
         totalScore: Number(totalScore),
         baseScore: Number(baseScore),
         bonus: Number(bonus),
@@ -155,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate score card HTML page with Open Graph (for Twitter previews)
   app.get("/api/score-card", async (req: any, res) => {
     try {
-      const { firstName, totalScore, baseScore, bonus } = req.query;
+      const { username, totalScore, baseScore, bonus } = req.query;
       
       // Get the base URL from the request (for production) or from env (for localhost)
       const isProduction = !!(process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RENDER);
@@ -170,14 +234,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       BASE_URL = BASE_URL.replace(/\/$/, '');
       
-      if (!firstName || !totalScore || !baseScore || !bonus) {
+      if (!username || !totalScore || !baseScore || !bonus) {
         return res.status(400).json({ message: "Missing required parameters" });
       }
       
       const totalScoreNum = Number(totalScore);
-      const imageUrl = `${BASE_URL}/api/score-card.png?firstName=${encodeURIComponent(String(firstName))}&totalScore=${totalScoreNum}&baseScore=${Number(baseScore)}&bonus=${Number(bonus)}`;
-      const title = `${firstName} scored ${totalScoreNum.toLocaleString()} points!`;
-      const description = `Base: ${baseScore}pts • Bonus: +${bonus}pts in Unmatched by EigenTribe!`;
+      const imageUrl = `${BASE_URL}/api/score-card.png?username=${encodeURIComponent(String(username))}&totalScore=${totalScoreNum}&baseScore=${Number(baseScore)}&bonus=${Number(bonus)}`;
+      const title = `${username} scored ${totalScoreNum.toLocaleString()} points!`;
+      const description = `Base: ${baseScore}pts • Bonus: +${bonus}pts in Mismatched by EigenTribe!`;
       
       const html = `<!DOCTYPE html>
 <html lang="en">

@@ -15,11 +15,13 @@ declare module 'express-session' {
   interface SessionData {
     user?: {
       id: string;
-      email: string;
-      firstName: string;
-      lastName: string;
+      walletAddress: string;
+      username: string;
       profileImageUrl: string | null;
     };
+    authNonce?: string;
+    authWalletAddress?: string;
+    pendingWalletAddress?: string;
   }
 }
 

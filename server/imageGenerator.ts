@@ -8,7 +8,7 @@ const __dirname = dirname(__filename);
 
 interface ScoreCardData {
   profileImageUrl?: string | null;
-  firstName: string;
+  firstName: string; // Keeping name as firstName for compatibility, but will be username
   totalScore: number;
   baseScore: number;
   bonus: number;
@@ -16,6 +16,7 @@ interface ScoreCardData {
 
 export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
   const { profileImageUrl, firstName, totalScore, baseScore, bonus } = data;
+  // firstName is actually username now, but keeping the parameter name for compatibility
   
   // Canvas dimensions
   const width = 1200;
@@ -71,10 +72,10 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
           <tspan fill="white"> points</tspan>
         </text>
         
-        <!-- Second line: in Unmatched by EigenTribe (with increased line gap) -->
+        <!-- Second line: Mismatched by EigenTribe (with increased line gap) -->
         <text x="${width / 2}" y="520" 
               font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
-              fill="white" text-anchor="middle">in Unmatched by EigenTribe</text>
+              fill="white" text-anchor="middle">Mismatched by EigenTribe</text>
       </g>
     </svg>
   `;

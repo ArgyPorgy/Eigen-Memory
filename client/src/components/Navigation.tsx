@@ -37,37 +37,37 @@ export function Navigation() {
 
   return (
     <NavigationMenu>
-      <NavigationMenuList className="flex-wrap">
+      <NavigationMenuList className="flex-wrap gap-1 sm:gap-2">
         <NavigationMenuItem>
           <Link href="/leaderboard">
-            <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center")}>
-              <img src="/Leaderboard.svg" alt="Leaderboard" className="w-4 h-4 mr-2" />
-              Leaderboard
+            <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4")}>
+              <img src="/Leaderboard.svg" alt="Leaderboard" className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Leaderboard</span>
             </NavigationMenuLink>
           </Link>
         </NavigationMenuItem>
         <NavigationMenuItem>
           <Link href="/profile">
-            <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center")}>
-              <User className="w-4 h-4 mr-2" />
-              Profile
+            <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4")}>
+              <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Profile</span>
             </NavigationMenuLink>
           </Link>
         </NavigationMenuItem>
         <NavigationMenuItem>
           <NavigationMenuLink 
-            className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center")}
+            className={cn(navigationMenuTriggerStyle(), "cursor-pointer flex items-center text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4")}
             onClick={toggleMusic}
           >
             {musicPlaying ? (
               <>
-                <Volume2 className="w-4 h-4 mr-2" />
-                Music
+                <Volume2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Music</span>
               </>
             ) : (
               <>
-                <VolumeX className="w-4 h-4 mr-2" />
-                Music
+                <VolumeX className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Music</span>
               </>
             )}
           </NavigationMenuLink>
