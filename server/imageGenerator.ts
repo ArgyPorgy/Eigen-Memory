@@ -28,7 +28,17 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
   const stripeBase64 = stripeBuffer.toString('base64');
   const stripeDataUri = `data:image/png;base64,${stripeBase64}`;
   
-  // Create base SVG for the card with new color scheme
+  // Read and convert Confetti.svg to base64
+  const confettiPath = join(__dirname, '..', 'client', 'public', 'Confetti.svg');
+  const confettiBuffer = await readFile(confettiPath);
+  const confettiBase64 = confettiBuffer.toString('base64');
+  const confettiDataUri = `data:image/svg+xml;base64,${confettiBase64}`;
+  
+  // Dark blue background color and slightly lighter for dialog
+  const bgColor = '#000386';
+  const dialogColor = '#0a0f9a'; // Slightly lighter dark blue
+  
+  // Create base SVG for the card matching the design
   const svg = `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -38,46 +48,47 @@ export async function generateScoreCard(data: ScoreCardData): Promise<Buffer> {
       </defs>
       
       <!-- Background -->
-      <rect width="${width}" height="${height}" fill="#000386" />
+      <rect width="${width}" height="${height}" fill="${bgColor}" />
       
       <!-- Stripe borders -->
       <rect x="0" y="0" width="${width}" height="30" fill="url(#stripePattern)" />
       <rect x="0" y="${height - 30}" width="${width}" height="30" fill="url(#stripePattern)" />
       
-      <!-- Main content area -->
-      <g transform="translate(${padding}, ${padding + 50})">
-        <!-- Title -->
-        <text x="${width / 2 - padding}" y="50" 
-              font-family="Arial, sans-serif" font-size="48" font-weight="bold" 
-              fill="white" text-anchor="middle">🎉 Congratulations!</text>
+      <!-- Confetti graphic centered above dialog -->
+      <image href="${confettiDataUri}" 
+             x="${width / 2 - 120}" y="80" 
+             width="240" height="240" />
+      
+      <!-- Main dialog box -->
+      <rect x="${width / 2 - 400}" y="280" width="800" height="280" 
+            rx="20" fill="${dialogColor}" 
+            stroke="rgba(255, 255, 255, 0.1)" stroke-width="1" />
+      
+      <!-- Dialog content -->
+      <g>
+        <!-- Title: Congratulations [Name]! -->
+        <text x="${width / 2}" y="340" 
+              font-family="Arial, sans-serif" font-size="52" font-weight="bold" 
+              fill="white" text-anchor="middle">Congratulations ${firstName}!</text>
         
-        <text x="${width / 2 - padding}" y="100" 
+        <!-- Subtitle: [Name], you have completed the match and earned [score]pts -->
+        <text x="${width / 2}" y="390" 
               font-family="Arial, sans-serif" font-size="28" 
-              fill="white" text-anchor="middle">${firstName} has completed Unmatched!</text>
-        
-        <!-- Score display white box -->
-        <rect x="${width / 2 - padding - 150}" y="150" width="300" height="180" 
-              rx="20" fill="white" stroke="#000386" stroke-width="4" />
-        
-        <text x="${width / 2 - padding}" y="220" 
-              font-family="Arial, sans-serif" font-size="32" font-weight="bold" 
-              fill="#000386" text-anchor="middle">TOTAL SCORE</text>
-        
-        <text x="${width / 2 - padding}" y="285" 
-              font-family="Arial, sans-serif" font-size="72" font-weight="bold" 
-              fill="#000386" text-anchor="middle">${totalScore.toLocaleString()}</text>
-        
-        <!-- Breakdown -->
-        <text x="${width / 2 - padding}" y="380" 
-              font-family="Arial, sans-serif" font-size="20" 
               fill="white" text-anchor="middle">
-          Base: ${baseScore}pts • Bonus: +${bonus}pts
+          ${firstName}, you have completed the match and earned ${totalScore.toLocaleString()}pts
         </text>
         
-        <!-- Call to action -->
-        <text x="${width / 2 - padding}" y="450" 
-              font-family="Arial, sans-serif" font-size="24" font-weight="bold" 
-              fill="white" text-anchor="middle">Play Unmatched Now →</text>
+        <!-- Total Score label -->
+        <text x="${width / 2}" y="460" 
+              font-family="Arial, sans-serif" font-size="24" 
+              fill="white" text-anchor="middle">Total Score</text>
+        
+        <!-- Score display (large and bold) -->
+        <text x="${width / 2}" y="520" 
+              font-family="Arial, sans-serif" font-size="64" font-weight="bold" 
+              fill="white" text-anchor="middle">
+          ${totalScore.toLocaleString()} pts
+        </text>
       </g>
     </svg>
   `;

@@ -58,13 +58,13 @@ type SymbolType = {
 // All available SVG images
 const SVG_FILES = [
   '/eigenlogo.svg',
-  '/Cloud.svg',
+  '/clouds.svg',
   '/nader.svg',
   '/pengu.svg',
-  '/Slashing.svg',
+  '/infinity.svg',
   '/sreeram.svg',
-  '/horn.svg',
-  '/abstract-robot.svg',
+  '/jar.svg',
+  '/robot.svg',
 ];
 
 // Create 8 pairs by using all 8 SVGs
