@@ -424,33 +424,81 @@ export default function Game() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    // 1. Disconnect wallet using Wagmi (await to ensure it completes)
+                    // 1. Manually disconnect all wallet providers (Phantom, Rabby, etc.)
+                    if (typeof window !== 'undefined' && (window as any).ethereum) {
+                      const ethereum = (window as any).ethereum;
+                      
+                      // Try to disconnect from each provider
+                      if (ethereum.providers) {
+                        // Multiple providers (injected wallets)
+                        for (const provider of ethereum.providers) {
+                          try {
+                            if (provider.disconnect) await provider.disconnect();
+                            if (provider.close) await provider.close();
+                          } catch (e) {
+                            console.log('Provider disconnect attempt:', e);
+                          }
+                        }
+                      } else {
+                        // Single provider
+                        try {
+                          if (ethereum.disconnect) await ethereum.disconnect();
+                          if (ethereum.close) await ethereum.close();
+                        } catch (e) {
+                          console.log('Provider disconnect attempt:', e);
+                        }
+                      }
+                    }
+                    
+                    // 2. Disconnect wallet using Wagmi
                     await disconnect();
                     
-                    // 2. Clear Wagmi storage to prevent auto-reconnect
+                    // 3. Clear ALL wallet-related storage (localStorage, sessionStorage)
                     if (typeof window !== 'undefined') {
-                      // Clear all Wagmi-related localStorage items
+                      // Clear localStorage
                       Object.keys(localStorage).forEach(key => {
-                        if (key.startsWith('wagmi.') || key.includes('recentConnector') || key.includes('wallet')) {
+                        if (
+                          key.startsWith('wagmi.') || 
+                          key.includes('recentConnector') || 
+                          key.includes('wallet') ||
+                          key.includes('phantom') ||
+                          key.includes('rabby') ||
+                          key.includes('coinbase') ||
+                          key.includes('okx') ||
+                          key.includes('WC') ||
+                          key.includes('WALLETCONNECT')
+                        ) {
                           localStorage.removeItem(key);
+                        }
+                      });
+                      
+                      // Clear sessionStorage
+                      Object.keys(sessionStorage).forEach(key => {
+                        if (
+                          key.startsWith('wagmi.') || 
+                          key.includes('wallet') ||
+                          key.includes('phantom') ||
+                          key.includes('rabby')
+                        ) {
+                          sessionStorage.removeItem(key);
                         }
                       });
                     }
                     
-                    // 3. Logout from server
+                    // 4. Logout from server
                     await fetch("/api/logout", { credentials: "include" });
                     
-                    // 4. Clear any cached queries
+                    // 5. Clear any cached queries
                     queryClient.clear();
                     
-                    // 5. Force a full page reload to ensure complete disconnect
+                    // 6. Force a full page reload to ensure complete disconnect
                     window.location.href = "/";
                   } catch (error) {
                     console.error("Logout error:", error);
                     // Clear storage even if disconnect fails
                     if (typeof window !== 'undefined') {
                       Object.keys(localStorage).forEach(key => {
-                        if (key.startsWith('wagmi.') || key.includes('recentConnector') || key.includes('wallet')) {
+                        if (key.includes('wagmi') || key.includes('wallet') || key.includes('phantom') || key.includes('rabby')) {
                           localStorage.removeItem(key);
                         }
                       });

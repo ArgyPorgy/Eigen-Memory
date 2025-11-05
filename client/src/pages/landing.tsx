@@ -6,6 +6,7 @@ import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { UsernameSetup } from "@/components/UsernameSetup";
+import { RefreshCw } from "lucide-react";
 
 // Detect if user is on mobile device
 const isMobileDevice = () => {
@@ -38,11 +39,35 @@ export default function Landing() {
   useEffect(() => {
     setIsMobile(isMobileDevice());
     
-    // If a wallet is already connected on page load (auto-reconnect), disconnect it
-    // User must explicitly click a button to connect
-    if (isConnected && !userInitiatedConnection) {
-      disconnect();
-    }
+    // Disconnect ALL wallets on page load to ensure clean state
+    const cleanupWallets = async () => {
+      try {
+        // Disconnect via Wagmi
+        if (isConnected) {
+          await disconnect();
+        }
+        
+        // Also try to disconnect at provider level for all wallets
+        if (typeof window !== 'undefined' && (window as any).ethereum) {
+          const ethereum = (window as any).ethereum;
+          
+          if (ethereum.providers) {
+            // Multiple providers
+            for (const provider of ethereum.providers) {
+              try {
+                if (provider.disconnect) await provider.disconnect();
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Ignore errors on cleanup
+      }
+    };
+    
+    cleanupWallets();
   }, []);
 
   // Handle wallet connection/disconnection
@@ -257,9 +282,18 @@ export default function Landing() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 w-full max-w-md">
                 {/* MetaMask */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
                     if (connector) {
+                      // First, disconnect any currently connected wallets
+                      if (isConnected) {
+                        await disconnect();
+                      }
+                      
+                      // Clear any pending auth attempts
+                      authAttemptRef.current = null;
+                      setAuthError(null);
+                      
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -280,9 +314,12 @@ export default function Landing() {
 
                 {/* Coinbase Wallet */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
                     if (connector) {
+                      if (isConnected) await disconnect();
+                      authAttemptRef.current = null;
+                      setAuthError(null);
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -303,9 +340,12 @@ export default function Landing() {
 
                 {/* OKX Wallet */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
                     if (connector) {
+                      if (isConnected) await disconnect();
+                      authAttemptRef.current = null;
+                      setAuthError(null);
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -326,9 +366,12 @@ export default function Landing() {
 
                 {/* Phantom */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
                     if (connector) {
+                      if (isConnected) await disconnect();
+                      authAttemptRef.current = null;
+                      setAuthError(null);
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -349,9 +392,12 @@ export default function Landing() {
 
                 {/* Rabby */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
                     if (connector) {
+                      if (isConnected) await disconnect();
+                      authAttemptRef.current = null;
+                      setAuthError(null);
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -372,9 +418,12 @@ export default function Landing() {
 
                 {/* Injected (for other wallets) */}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const connector = connectors.find(c => c.id === 'injected');
                     if (connector) {
+                      if (isConnected) await disconnect();
+                      authAttemptRef.current = null;
+                      setAuthError(null);
                       setUserInitiatedConnection(true);
                       setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
@@ -420,6 +469,19 @@ export default function Landing() {
                   Authenticating...
                 </p>
               )}
+              
+              {/* Refresh Button */}
+              <div className="flex justify-center mt-6">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                  className="text-white/70 hover:text-white hover:bg-white/10 gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span className="text-xs sm:text-sm">Refresh Page</span>
+                </Button>
+              </div>
             </div>
             
             {isMobile && !authError && (

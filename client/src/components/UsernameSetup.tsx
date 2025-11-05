@@ -84,7 +84,7 @@ export function UsernameSetup({ isOpen, walletAddress, onComplete }: UsernameSet
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md mx-4">
+      <DialogContent className="sm:max-w-md mx-4" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">Welcome to Mismatched!</DialogTitle>
           <DialogDescription className="text-sm sm:text-base">
