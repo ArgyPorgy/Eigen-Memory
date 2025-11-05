@@ -39,6 +39,8 @@ export function getSession() {
       createTableIfMissing: true,
       ttl: sessionTtl,
       tableName: "sessions",
+      pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
+      disableTouch: false, // Allow session updates
     });
     console.log('✅ Using PostgreSQL session store');
   } else if (isProduction) {
@@ -330,29 +332,48 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  // Logout
+  // Logout - Complete cleanup of session and cookies
   app.get("/api/logout", (req, res) => {
-    const logoutCallback = (err: Error | undefined) => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({ message: "Failed to logout" });
-      }
+    const sessionId = req.sessionID;
+    console.log(`Logout request for session: ${sessionId}`);
+    
+    const destroySession = () => {
       req.session.destroy((err) => {
         if (err) {
           console.error("Session destroy error:", err);
-          return res.status(500).json({ message: "Failed to destroy session" });
+          // Still try to clear cookies even if destroy fails
+        } else {
+          console.log(`✓ Session destroyed: ${sessionId}`);
         }
-        res.clearCookie("sessionId");
+        
+        // Clear all possible session cookies
+        res.clearCookie("sessionId", {
+          httpOnly: true,
+          secure: !!(process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RENDER),
+          sameSite: !!(process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RENDER) ? 'none' : 'lax',
+          domain: undefined,
+        });
+        
+        // Also clear any connect.sid cookie (default express-session name)
+        res.clearCookie("connect.sid");
+        
         res.json({ message: "Logged out successfully" });
       });
     };
 
     const authReq = req as AuthenticatedRequest;
     if (authReq.logout) {
-      authReq.logout(logoutCallback);
+      // Use Passport's logout method first
+      authReq.logout((err) => {
+        if (err) {
+          console.error("Passport logout error:", err);
+        }
+        // Then destroy the session
+        destroySession();
+      });
     } else {
-      // Fallback: manually destroy session
-      logoutCallback(undefined);
+      // Fallback: directly destroy session
+      destroySession();
     }
   });
 
