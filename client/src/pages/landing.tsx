@@ -22,7 +22,8 @@ export default function Landing() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [userInitiatedConnection, setUserInitiatedConnection] = useState(false); // Track if user clicked a button
   const [pendingConnection, setPendingConnection] = useState(false); // Track if connection attempt is in progress
-  const previousAddressRef = useRef<string | undefined>(undefined); // Track previous address to detect new connections
+  const previousConnectedRef = useRef<boolean>(false); // Track previous connection state
+  const previousAddressRef = useRef<string | undefined>(undefined); // Track previous address
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authAttemptRef = useRef<string | null>(null); // Track which address we're trying to auth
@@ -39,6 +40,16 @@ export default function Landing() {
 
   // Handle wallet connection/disconnection
   useEffect(() => {
+    // Check if connection state changed from disconnected to connected
+    const justConnected = !previousConnectedRef.current && isConnected && address;
+    const addressChanged = previousAddressRef.current && previousAddressRef.current !== address;
+    
+    // Update previous state
+    previousConnectedRef.current = isConnected;
+    if (address) {
+      previousAddressRef.current = address;
+    }
+
     if (!isConnected || !address) {
       // Reset state when disconnected
       setWalletAddress(null);
@@ -48,15 +59,11 @@ export default function Landing() {
       setUserInitiatedConnection(false);
       setPendingConnection(false);
       previousAddressRef.current = undefined;
+      previousConnectedRef.current = false;
       return;
     }
 
-    // Check if this is a new connection (address changed from undefined/null to a value)
-    const isNewConnection = previousAddressRef.current === undefined && address !== undefined;
-    previousAddressRef.current = address;
-
     // If connection failed or was canceled, reset the pending state
-    // Check after a small delay to allow connection to complete
     if (pendingConnection && connectError) {
       setTimeout(() => {
         setPendingConnection(false);
@@ -67,18 +74,21 @@ export default function Landing() {
 
     // Only authenticate if:
     // 1. User explicitly clicked a wallet button (userInitiatedConnection is true)
-    // 2. This is a new connection (not a page reload with existing connection)
-    // 3. Connection is pending (user just clicked connect)
+    // 2. Connection is pending (user just clicked connect)
+    // 3. We just connected (transitioned from disconnected to connected) OR address changed
     if (!userInitiatedConnection || !pendingConnection) {
       return;
     }
 
-    // Only proceed if we have a successful new connection
-    if (isNewConnection && isConnected) {
-      setPendingConnection(false); // Mark connection as complete
+    // Check if we have a successful connection (either just connected or address changed)
+    if (!justConnected && !addressChanged) {
+      return;
     }
 
-    // Ensure we're on Ethereum mainnet
+    // Mark connection as complete before authenticating
+    setPendingConnection(false);
+
+    // Ensure we're on Ethereum mainnet (don't block on this)
     if (isConnected) {
       try {
         switchChain({ chainId: mainnet.id });
@@ -87,15 +97,14 @@ export default function Landing() {
       }
     }
 
-    // If address changed or we haven't authenticated yet, start authentication
-    // Only authenticate if we haven't already attempted this address
-    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address && isNewConnection) {
+    // Start authentication if we haven't already attempted this address
+    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
       setWalletAddress(address);
       setAuthError(null);
       authAttemptRef.current = address;
       authenticateWithServer(address);
     }
-  }, [isConnected, address, switchChain, userInitiatedConnection, pendingConnection, connectError]);
+  }, [isConnected, address, switchChain, userInitiatedConnection, pendingConnection, connectError, walletAddress, isConnecting]);
 
   // Handle wallet connections using Wagmi hooks
 
@@ -180,6 +189,10 @@ export default function Landing() {
       setAuthError(null);
       authAttemptRef.current = null;
       setIsConnecting(false);
+      setUserInitiatedConnection(false);
+      setPendingConnection(false);
+      previousAddressRef.current = undefined;
+      previousConnectedRef.current = false;
       toast({
         title: "Disconnected",
         description: "Please connect your wallet again with the account you want to use.",
