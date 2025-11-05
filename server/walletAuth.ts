@@ -365,13 +365,42 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
-  // Check if user is authenticated via session
+  // Check authentication via Passport (req.user) or session fallback
+  const authReq = req as AuthenticatedRequest;
   const session = req.session as any;
-  if (!session.user || !session.user.id) {
+  
+  let user: any = undefined;
+  
+  // First check if Passport populated req.user
+  if (authReq.user && authReq.user.id) {
+    user = authReq.user;
+  }
+  // Fallback to session.user (for manual login)
+  else if (session.user && session.user.id) {
+    user = session.user;
+  }
+  // Check Passport session data (passport.user) and fetch from DB
+  else if (session.passport && session.passport.user) {
+    try {
+      const dbUser = await storage.getUser(session.passport.user);
+      if (dbUser) {
+        user = {
+          id: dbUser.id,
+          walletAddress: dbUser.walletAddress,
+          username: dbUser.username,
+          profileImageUrl: dbUser.profileImageUrl,
+        };
+      }
+    } catch (error) {
+      console.error("Error fetching user from session:", error);
+    }
+  }
+  
+  if (!user || !user.id) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  // Attach user to request for convenience
-  const authReq = req as AuthenticatedRequest;
-  authReq.user = session.user;
+  
+  // Attach user to request for routes to use
+  authReq.user = user;
   next();
 };
