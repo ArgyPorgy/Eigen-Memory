@@ -1,9 +1,10 @@
-// App.tsx - Main application component with Replit Auth integration
+// App.tsx - Main application component with ConnectKit integration
 import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
+import { ConnectKitProvider } from "connectkit";
 import { wagmiConfig } from "./lib/wagmi";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -76,10 +77,22 @@ function App() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <ConnectKitProvider
+          theme="midnight"
+          mode="light"
+          customTheme={{
+            '--ck-overlay-background': 'rgba(0, 0, 0, 0.8)',
+            '--ck-body-background': '#0a001f',
+            '--ck-body-color': '#ffffff',
+            '--ck-primary-button-background': '#21157d',
+            '--ck-primary-button-hover-background': '#2d1b69',
+          }}
+        >
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ConnectKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

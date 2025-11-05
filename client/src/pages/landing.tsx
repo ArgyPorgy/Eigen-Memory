@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { ConnectKitButton } from "connectkit";
 import { useConnect, useAccount, useSignMessage, useSwitchChain } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,6 +31,14 @@ export default function Landing() {
   useEffect(() => {
     setIsMobile(isMobileDevice());
   }, []);
+
+  // Handle authentication when wallet connects via ConnectKit
+  useEffect(() => {
+    if (isConnected && address && !isConnecting && !walletAddress) {
+      setWalletAddress(address);
+      authenticateWithServer(address);
+    }
+  }, [isConnected, address]);
 
   // Handle MetaMask connection only (for main button)
   const handleConnectWallet = async () => {
@@ -327,55 +336,18 @@ export default function Landing() {
               </p>
             </div>
 
-            {/* Connect Wallet Button */}
+            {/* Connect Wallet Button - Using ConnectKit for better mobile UX */}
             <div className="flex justify-center pt-2 sm:pt-4">
-              <Button
-                size="lg"
-                className="text-base sm:text-lg px-8 sm:px-12 py-5 sm:py-6 rounded-full bg-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 w-full sm:w-auto"
-                style={{ color: '#21157d' }}
-                onClick={handleConnectWallet}
-                disabled={isConnecting || isPending}
-                data-testid="button-connect-wallet"
-              >
-                {isConnecting || isPending ? "Connecting..." : isMobile ? "Connect Wallet" : "Connect Wallet"}
-              </Button>
+              <div className="w-full sm:w-auto [&_button]:text-base [&_button]:sm:text-lg [&_button]:px-8 [&_button]:sm:px-12 [&_button]:py-5 [&_button]:sm:py-6 [&_button]:rounded-full [&_button]:shadow-xl [&_button]:transition-all [&_button]:duration-300 [&_button]:hover:shadow-2xl [&_button]:hover:scale-105 [&_button]:w-full [&_button]:sm:w-auto">
+                <ConnectKitButton />
+              </div>
             </div>
             
             {isMobile && (
               <p className="text-center text-xs text-white/60 px-4">
-                On mobile? Use Coinbase Wallet, MetaMask mobile app, or any browser wallet installed on your device.
+                Connect your wallet to get started. ConnectKit supports all major mobile wallets including Coinbase Wallet, MetaMask, and more.
               </p>
             )}
-
-            {/* Always show all wallet options */}
-            <div className="space-y-2">
-              <p className="text-center text-xs text-white/60">Or connect with:</p>
-              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                {[
-                  { id: 'metamask', name: 'MetaMask', image: '/metamask.jpg' },
-                  { id: 'coinbase', name: 'Coinbase', image: '/coinbase.png' },
-                  { id: 'okx', name: 'OKX', image: '/okx.jpg' },
-                  { id: 'phantom', name: 'Phantom', image: '/phantom.jpg' },
-                  { id: 'rabby', name: 'Rabby', image: '/rabby.jpg' },
-                ].map((wallet) => (
-                  <Button
-                    key={wallet.id}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleWalletConnect(wallet.id)}
-                    className="text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 border-white/20 text-white"
-                    disabled={isConnecting || isPending}
-                  >
-                    <img 
-                      src={wallet.image} 
-                      alt={wallet.name}
-                      className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
-                    />
-                    {wallet.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
