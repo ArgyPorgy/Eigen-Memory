@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ConnectKitButton } from "connectkit";
-import { useConnect, useAccount, useSignMessage, useSwitchChain } from "wagmi";
+import { AppKitConnectButton } from "@reown/appkit/react";
+import { useAccount, useSignMessage, useSwitchChain } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,7 +23,6 @@ export default function Landing() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const { connect, connectors, isPending } = useConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
@@ -40,216 +39,8 @@ export default function Landing() {
     }
   }, [isConnected, address]);
 
-  // Handle MetaMask connection only (for main button)
-  const handleConnectWallet = async () => {
-    setIsConnecting(true);
-    try {
-      // If already connected, use the connected address
-      if (isConnected && address) {
-        setWalletAddress(address);
-        await authenticateWithServer(address);
-        return;
-      }
-
-      // On mobile, prioritize Coinbase Wallet (better mobile support) or injected
-      // On desktop, prioritize MetaMask
-      let connector = null;
-      
-      if (isMobile) {
-        // On mobile, try Coinbase Wallet first (has better mobile deep link support)
-        connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
-        // Fallback to injected if Coinbase not available
-        if (!connector) {
-          connector = connectors.find(c => c.id === 'injected' || c.id === 'metaMask');
-        }
-      } else {
-        // On desktop, prefer MetaMask
-        connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
-      }
-      
-      // If still no connector, try injected as last resort
-      if (!connector) {
-        connector = connectors.find(c => c.id === 'injected') || connectors[0];
-      }
-      
-      if (!connector) {
-        toast({
-          title: "Wallet Not Found",
-          description: isMobile 
-            ? "No wallet detected. Please install a mobile wallet like Coinbase Wallet or MetaMask, or use a wallet option below."
-            : "MetaMask is not installed. Please install MetaMask or choose another wallet option below.",
-          variant: "destructive",
-        });
-        setIsConnecting(false);
-        return;
-      }
-
-      // Connect wallet using Wagmi
-      connect(
-        { connector, chainId: mainnet.id },
-        {
-          onSuccess: async (data) => {
-            const address = data.accounts[0];
-            setWalletAddress(address);
-            
-            // Ensure we're on Ethereum mainnet
-            try {
-              await switchChain({ chainId: mainnet.id });
-            } catch (switchError: any) {
-              if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
-                toast({
-                  title: "Network Switch Required",
-                  description: "Please switch to Ethereum Mainnet in your wallet to continue.",
-                  variant: "destructive",
-                });
-              }
-            }
-            
-            await authenticateWithServer(address);
-          },
-          onError: (error: any) => {
-            console.error("Wallet connection error:", error);
-            let errorMessage = "Failed to connect wallet";
-            
-            if (error?.message) {
-              errorMessage = error.message;
-              if (error.message.includes("RPC") || error.message.includes("rpc")) {
-                errorMessage = "RPC connection error. Please check your network connection and try again.";
-              } else if (error.message.includes("rejected") || error.message.includes("denied")) {
-                errorMessage = "Connection rejected. Please approve the connection in your wallet.";
-              } else if (error.message.includes("network") || error.message.includes("chain")) {
-                errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
-              }
-            }
-            
-            toast({
-              title: "Connection Failed",
-              description: errorMessage,
-              variant: "destructive",
-            });
-          },
-        }
-      );
-    } catch (error: any) {
-      console.error("Wallet connection error:", error);
-      toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect wallet",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  // Handle individual wallet connection
-  const handleWalletConnect = async (walletId: string) => {
-    setIsConnecting(true);
-    try {
-      let connector = null;
-      
-      // Find the appropriate connector - prioritize mobile-friendly connectors on mobile
-      if (walletId === 'metamask') {
-        // MetaMask - works on both mobile and desktop
-        if (isMobile) {
-          // On mobile, try injected first (might be MetaMask mobile browser)
-          connector = connectors.find(c => c.id === 'injected' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
-        } else {
-          connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
-        }
-      } else if (walletId === 'coinbase') {
-        // Coinbase Wallet - excellent mobile support
-        connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
-      } else if (walletId === 'okx') {
-        connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
-      } else if (walletId === 'phantom') {
-        connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
-      } else if (walletId === 'rabby') {
-        connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
-      }
-      
-      // On mobile, if no specific connector found, try injected as fallback
-      if (!connector && isMobile) {
-        connector = connectors.find(c => c.id === 'injected');
-      }
-
-      if (!connector) {
-        // Wallet not installed - show install prompt
-        const walletInfo = {
-          metamask: { name: 'MetaMask', url: 'https://metamask.io/download/' },
-          coinbase: { name: 'Coinbase Wallet', url: 'https://www.coinbase.com/wallet' },
-          okx: { name: 'OKX Wallet', url: 'https://www.okx.com/web3' },
-          phantom: { name: 'Phantom', url: 'https://phantom.app/' },
-          rabby: { name: 'Rabby', url: 'https://rabby.io/' },
-        };
-        
-        const info = walletInfo[walletId as keyof typeof walletInfo];
-        toast({
-          title: `${info.name} Not Installed`,
-          description: `Please install ${info.name} to continue. Visit ${info.url} to get started.`,
-          variant: "destructive",
-        });
-        setIsConnecting(false);
-        return;
-      }
-
-      // Connect wallet
-      connect(
-        { connector, chainId: mainnet.id },
-        {
-          onSuccess: async (data) => {
-            const address = data.accounts[0];
-            setWalletAddress(address);
-            
-            // Ensure we're on Ethereum mainnet
-            try {
-              await switchChain({ chainId: mainnet.id });
-            } catch (switchError: any) {
-              if (switchError?.name !== 'UserRejectedRequestError' && switchError?.code !== 4900) {
-                toast({
-                  title: "Network Switch Required",
-                  description: "Please switch to Ethereum Mainnet in your wallet to continue.",
-                  variant: "destructive",
-                });
-              }
-            }
-            
-            await authenticateWithServer(address);
-          },
-          onError: (error: any) => {
-            console.error("Wallet connection error:", error);
-            let errorMessage = "Failed to connect wallet";
-            
-            if (error?.message) {
-              errorMessage = error.message;
-              if (error.message.includes("RPC") || error.message.includes("rpc")) {
-                errorMessage = "RPC connection error. Please check your network connection and try again.";
-              } else if (error.message.includes("rejected") || error.message.includes("denied")) {
-                errorMessage = "Connection rejected. Please approve the connection in your wallet.";
-              } else if (error.message.includes("network") || error.message.includes("chain")) {
-                errorMessage = "Network error. Please ensure your wallet is connected to Ethereum Mainnet.";
-              }
-            }
-            
-            toast({
-              title: "Connection Failed",
-              description: errorMessage,
-              variant: "destructive",
-            });
-          },
-        }
-      );
-    } catch (error: any) {
-      console.error("Wallet connection error:", error);
-      toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect wallet",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnecting(false);
-    }
-  };
+  // Note: AppKitConnectButton handles all wallet connections automatically
+  // No need for manual connection logic anymore
 
   const authenticateWithServer = async (address: string) => {
     try {
@@ -336,16 +127,16 @@ export default function Landing() {
               </p>
             </div>
 
-            {/* Connect Wallet Button - Using ConnectKit for better mobile UX */}
+            {/* Connect Wallet Button - Using Reown AppKit for better mobile UX */}
             <div className="flex justify-center pt-2 sm:pt-4">
               <div className="w-full sm:w-auto [&_button]:text-base [&_button]:sm:text-lg [&_button]:px-8 [&_button]:sm:px-12 [&_button]:py-5 [&_button]:sm:py-6 [&_button]:rounded-full [&_button]:shadow-xl [&_button]:transition-all [&_button]:duration-300 [&_button]:hover:shadow-2xl [&_button]:hover:scale-105 [&_button]:w-full [&_button]:sm:w-auto">
-                <ConnectKitButton />
+                <AppKitConnectButton />
               </div>
             </div>
             
             {isMobile && (
               <p className="text-center text-xs text-white/60 px-4">
-                Connect your wallet to get started. ConnectKit supports all major mobile wallets including Coinbase Wallet, MetaMask, and more.
+                Connect your wallet to get started. Reown AppKit supports all major mobile wallets including Coinbase Wallet, MetaMask, WalletConnect, and more.
               </p>
             )}
           </div>

@@ -1,43 +1,60 @@
 // Wallet connection utilities for EIP-1193 compatible wallets (MetaMask, Coinbase Wallet, Trust Wallet, etc.)
 import { ethers } from "ethers";
 
-declare global {
-  interface Window {
-    ethereum?: any;
-    ethereumProviders?: any[];
+// EIP-1193 Provider interface
+interface Eip1193Provider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  isMetaMask?: boolean;
+  isCoinbaseWallet?: boolean;
+  isTrust?: boolean;
+  isBraveWallet?: boolean;
+  providerName?: string;
+  providers?: Eip1193Provider[];
+}
+
+// Helper to safely get ethereum provider with proper typing
+function getEthereumProvider(): Eip1193Provider | undefined {
+  const eth = (window as any).ethereum;
+  if (!eth || typeof eth.request !== 'function') {
+    return undefined;
   }
+  return eth as Eip1193Provider;
+}
+
+// Helper to safely get ethereum providers array
+function getEthereumProviders(): Eip1193Provider[] {
+  const eth = getEthereumProvider();
+  if (eth?.providers && Array.isArray(eth.providers)) {
+    return eth.providers as Eip1193Provider[];
+  }
+  const providers = (window as any).ethereumProviders;
+  if (providers && Array.isArray(providers)) {
+    return providers as Eip1193Provider[];
+  }
+  return eth ? [eth] : [];
 }
 
 // Check if MetaMask aggregator is available (multiple wallets detected)
 export function hasMultipleWallets(): boolean {
+  const eth = getEthereumProvider();
   // MetaMask sets this when it detects other wallets
-  if (window.ethereum?.providers && Array.isArray(window.ethereum.providers) && window.ethereum.providers.length > 1) {
+  if (eth?.providers && Array.isArray(eth.providers) && eth.providers.length > 1) {
     return true;
   }
   // Alternative check - some setups expose providers on window
-  if (window.ethereumProviders && Array.isArray(window.ethereumProviders) && window.ethereumProviders.length > 1) {
-    return true;
-  }
-  return false;
+  const providers = getEthereumProviders();
+  return providers.length > 1;
 }
 
 // Get all available wallet providers
-export function getWalletProviders(): any[] {
-  // MetaMask aggregator mode - providers array
-  if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
-    return window.ethereum.providers;
-  }
-  // Alternative providers array
-  if (window.ethereumProviders && Array.isArray(window.ethereumProviders)) {
-    return window.ethereumProviders;
-  }
-  // Single provider
-  return window.ethereum ? [window.ethereum] : [];
+export function getWalletProviders(): Eip1193Provider[] {
+  return getEthereumProviders();
 }
 
 // Check if currently connected to a specific provider
-export async function getConnectedProvider(): Promise<any | null> {
-  if (!window.ethereum) {
+export async function getConnectedProvider(): Promise<Eip1193Provider | null> {
+  const eth = getEthereumProvider();
+  if (!eth) {
     return null;
   }
 
@@ -46,7 +63,7 @@ export async function getConnectedProvider(): Promise<any | null> {
     const providers = getWalletProviders();
     for (const provider of providers) {
       try {
-        const accounts = await provider.request({ method: "eth_accounts" }).catch(() => []);
+        const accounts = await provider.request({ method: "eth_accounts" }).catch(() => []) as string[];
         if (accounts && accounts.length > 0) {
           return provider;
         }
@@ -58,8 +75,8 @@ export async function getConnectedProvider(): Promise<any | null> {
 
   // Single provider or no accounts found
   try {
-    const accounts = await window.ethereum.request({ method: "eth_accounts" }).catch(() => []);
-    return accounts && accounts.length > 0 ? window.ethereum : null;
+    const accounts = await eth.request({ method: "eth_accounts" }).catch(() => []) as string[];
+    return accounts && accounts.length > 0 ? eth : null;
   } catch (error) {
     return null;
   }
@@ -70,30 +87,32 @@ const ETHEREUM_MAINNET_DECIMAL = 1;
 
 // Detect wallet provider name
 export function getWalletName(): string {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     return "EVM Wallet";
   }
   
   // Check for specific wallet providers
-  if (window.ethereum.isMetaMask) {
+  if (eth.isMetaMask) {
     return "MetaMask";
   }
-  if (window.ethereum.isCoinbaseWallet) {
+  if (eth.isCoinbaseWallet) {
     return "Coinbase Wallet";
   }
-  if (window.ethereum.isTrust) {
+  if (eth.isTrust) {
     return "Trust Wallet";
   }
-  if (window.ethereum.isBraveWallet) {
+  if (eth.isBraveWallet) {
     return "Brave Wallet";
   }
   
   // Generic fallback
-  return window.ethereum.providerName || "EVM Wallet";
+  return eth.providerName ?? "EVM Wallet";
 }
 
 export async function connectWallet(forceReconnect: boolean = false): Promise<string> {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     throw new Error("No EVM wallet detected. Please install MetaMask, Coinbase Wallet, or another compatible wallet.");
   }
 
@@ -110,7 +129,7 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
           try {
             const existingAccounts = await provider.request({
               method: "eth_accounts",
-            }).catch(() => []);
+            }).catch(() => []) as string[];
             
             if (existingAccounts && existingAccounts.length > 0) {
               // Try to revoke permissions to force wallet selector on next request
@@ -123,7 +142,7 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
                 });
                 // Small delay to ensure MetaMask processes the revocation
                 await new Promise(resolve => setTimeout(resolve, 100));
-              } catch (revokeError: any) {
+              } catch (revokeError: unknown) {
                 // If revoke not supported, that's okay - we'll still request accounts
                 console.log("wallet_revokePermissions not supported for provider");
               }
@@ -153,9 +172,9 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
     // 1. Permissions were revoked (forceReconnect)
     // 2. User has multiple accounts in MetaMask
     // 3. Multiple wallet extensions are installed (MetaMask aggregator)
-    const accounts = await window.ethereum.request({
+    const accounts = await eth.request({
       method: "eth_requestAccounts",
-    });
+    }) as string[];
 
     if (!accounts || accounts.length === 0) {
       throw new Error("No accounts found. Please connect your wallet.");
@@ -176,25 +195,27 @@ export async function connectWallet(forceReconnect: boolean = false): Promise<st
 }
 
 export async function switchToEthereumMainnet(): Promise<void> {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     throw new Error("No EVM wallet detected");
   }
 
   try {
     // Check current chain
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = await eth.request({ method: "eth_chainId" }) as string;
 
     if (chainId !== ETHEREUM_MAINNET_CHAIN_ID) {
       // Try to switch to mainnet
       try {
-        await window.ethereum.request({
+        await eth.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: ETHEREUM_MAINNET_CHAIN_ID }],
         });
-      } catch (switchError: any) {
+      } catch (switchError: unknown) {
         // If the chain doesn't exist, add it
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
+        const error = switchError as { code?: number };
+        if (error.code === 4902) {
+          await eth.request({
             method: "wallet_addEthereumChain",
             params: [
               {
@@ -223,17 +244,20 @@ export async function switchToEthereumMainnet(): Promise<void> {
 }
 
 export async function signMessage(message: string): Promise<string> {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     throw new Error("No EVM wallet detected");
   }
 
   try {
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    // Type assertion needed for ethers.BrowserProvider
+    const provider = new ethers.BrowserProvider(eth as unknown as ethers.Eip1193Provider);
     const signer = await provider.getSigner();
     const signature = await signer.signMessage(message);
     return signature;
-  } catch (error: any) {
-    if (error.code === 4001) {
+  } catch (error: unknown) {
+    const err = error as { code?: number };
+    if (err.code === 4001) {
       throw new Error("User rejected the signature request.");
     }
     throw error;
@@ -241,14 +265,15 @@ export async function signMessage(message: string): Promise<string> {
 }
 
 export async function getCurrentAccount(): Promise<string | null> {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     return null;
   }
 
   try {
-    const accounts = await window.ethereum.request({
+    const accounts = await eth.request({
       method: "eth_accounts",
-    });
+    }) as string[];
 
     if (!accounts || accounts.length === 0) {
       return null;
@@ -262,27 +287,26 @@ export async function getCurrentAccount(): Promise<string | null> {
 }
 
 export async function disconnectWallet(): Promise<void> {
-  if (!window.ethereum) {
+  const eth = getEthereumProvider();
+  if (!eth) {
     return;
   }
 
   try {
     // Try to revoke permissions to force reconnection popup next time
     // This uses EIP-2255 wallet_revokePermissions
-    if (window.ethereum.request && typeof window.ethereum.request === 'function') {
-      try {
-        // Revoke eth_accounts permission
-        await window.ethereum.request({
-          method: "wallet_revokePermissions",
-          params: [{
-            eth_accounts: {}
-          }],
-        });
-      } catch (error: any) {
-        // If revokePermissions is not supported, try wallet_requestPermissions with empty
-        // Some wallets don't support revokePermissions
-        console.log("wallet_revokePermissions not supported, wallet will remain connected");
-      }
+    try {
+      // Revoke eth_accounts permission
+      await eth.request({
+        method: "wallet_revokePermissions",
+        params: [{
+          eth_accounts: {}
+        }],
+      });
+    } catch (error: unknown) {
+      // If revokePermissions is not supported, try wallet_requestPermissions with empty
+      // Some wallets don't support revokePermissions
+      console.log("wallet_revokePermissions not supported, wallet will remain connected");
     }
   } catch (error) {
     console.error("Error disconnecting wallet:", error);
@@ -290,7 +314,7 @@ export async function disconnectWallet(): Promise<void> {
 }
 
 export function isWalletInstalled(): boolean {
-  return typeof window.ethereum !== "undefined";
+  return getEthereumProvider() !== undefined;
 }
 
 // Keep for backward compatibility

@@ -1,11 +1,12 @@
-// App.tsx - Main application component with ConnectKit integration
+// App.tsx - Main application component with Reown AppKit integration
 import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
-import { ConnectKitProvider } from "connectkit";
-import { wagmiConfig } from "./lib/wagmi";
+import { AppKitProvider } from "@reown/appkit/react";
+import { mainnet as mainnetNetwork } from "@reown/appkit/networks";
+import { wagmiConfig, wagmiAdapter } from "./lib/wagmi";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +16,9 @@ import Game from "@/pages/game";
 import Leaderboard from "@/pages/leaderboard";
 import Profile from "@/pages/profile";
 import { playMusic, stopMusic } from "@/lib/music";
+
+// WalletConnect Project ID
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -77,22 +81,27 @@ function App() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <ConnectKitProvider
-          theme="midnight"
-          mode="light"
-          customTheme={{
-            '--ck-overlay-background': 'rgba(0, 0, 0, 0.8)',
-            '--ck-body-background': '#0a001f',
-            '--ck-body-color': '#ffffff',
-            '--ck-primary-button-background': '#21157d',
-            '--ck-primary-button-hover-background': '#2d1b69',
+        <AppKitProvider
+          adapters={[wagmiAdapter]}
+          projectId={projectId || 'demo'}
+          networks={[mainnetNetwork]}
+          defaultNetwork={mainnetNetwork}
+          themeMode="light"
+          themeVariables={{
+            '--w3m-accent': '#21157d',
+          }}
+          metadata={{
+            name: 'Mismatched',
+            description: 'Match tiles, beat the clock, climb the leaderboard.',
+            url: typeof window !== 'undefined' ? window.location.origin : 'https://mismatched.vercel.app',
+            icons: [typeof window !== 'undefined' ? `${window.location.origin}/tribe.jpg` : 'https://mismatched.vercel.app/tribe.jpg'],
           }}
         >
           <TooltipProvider>
             <Toaster />
             <Router />
           </TooltipProvider>
-        </ConnectKitProvider>
+        </AppKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
