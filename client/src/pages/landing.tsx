@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { AppKitConnectButton } from "@reown/appkit/react";
-import { useAccount, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
+import { useConnect, useAccount, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +24,7 @@ export default function Landing() {
   const queryClient = useQueryClient();
   const authAttemptRef = useRef<string | null>(null); // Track which address we're trying to auth
   
+  const { connect, connectors, isPending } = useConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
@@ -45,6 +45,15 @@ export default function Landing() {
       return;
     }
 
+    // Ensure we're on Ethereum mainnet
+    if (isConnected) {
+      try {
+        switchChain({ chainId: mainnet.id });
+      } catch (error) {
+        // Ignore errors if already on mainnet or user rejects
+      }
+    }
+
     // If address changed or we haven't authenticated yet, start authentication
     // Only authenticate if we haven't already attempted this address
     if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
@@ -53,10 +62,9 @@ export default function Landing() {
       authAttemptRef.current = address;
       authenticateWithServer(address);
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, switchChain]);
 
-  // Note: AppKitConnectButton handles all wallet connections automatically
-  // No need for manual connection logic anymore
+  // Handle wallet connections using Wagmi hooks
 
   const authenticateWithServer = async (address: string) => {
     // Prevent multiple simultaneous authentication attempts
@@ -188,15 +196,143 @@ export default function Landing() {
               </p>
             </div>
 
-            {/* Connect Wallet Button - Using Reown AppKit for better mobile UX */}
-            <div className="flex flex-col items-center gap-3 pt-2 sm:pt-4">
-              <div className="w-full sm:w-auto [&_button]:text-base [&_button]:sm:text-lg [&_button]:px-8 [&_button]:sm:px-12 [&_button]:py-5 [&_button]:sm:py-6 [&_button]:rounded-full [&_button]:shadow-xl [&_button]:transition-all [&_button]:duration-300 [&_button]:hover:shadow-2xl [&_button]:hover:scale-105 [&_button]:w-full [&_button]:sm:w-auto">
-                <AppKitConnectButton />
+            {/* Available Wallets */}
+            <div className="flex flex-col items-center gap-4 pt-2 sm:pt-4">
+              <p className="text-sm sm:text-base text-white/80 mb-2">Available Wallets</p>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 w-full max-w-md">
+                {/* MetaMask */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "MetaMask Not Found",
+                        description: "Please install MetaMask to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/metamask.jpg" alt="MetaMask" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">MetaMask</span>
+                </Button>
+
+                {/* Coinbase Wallet */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "Coinbase Wallet Not Found",
+                        description: "Please install Coinbase Wallet to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/coinbase.png" alt="Coinbase Wallet" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">Coinbase</span>
+                </Button>
+
+                {/* OKX Wallet */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "OKX Wallet Not Found",
+                        description: "Please install OKX Wallet to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/okx.jpg" alt="OKX Wallet" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">OKX</span>
+                </Button>
+
+                {/* Phantom */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "Phantom Not Found",
+                        description: "Please install Phantom to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">Phantom</span>
+                </Button>
+
+                {/* Rabby */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "Rabby Not Found",
+                        description: "Please install Rabby to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/rabby.jpg" alt="Rabby" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">Rabby</span>
+                </Button>
+
+                {/* Injected (for other wallets) */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'injected');
+                    if (connector) {
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "No Wallet Found",
+                        description: "Please install a compatible wallet extension.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-white/20 flex items-center justify-center">
+                    <span className="text-lg sm:text-xl">🔌</span>
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Other</span>
+                </Button>
               </div>
               
               {/* Show error message and retry option if authentication failed */}
               {authError && isConnected && (
-                <div className="w-full max-w-md space-y-2">
+                <div className="w-full max-w-md space-y-2 mt-4">
                   <p className="text-center text-sm text-red-300 px-4">
                     {authError}
                   </p>
@@ -214,15 +350,15 @@ export default function Landing() {
               )}
               
               {isConnecting && (
-                <p className="text-center text-sm text-white/60 px-4">
+                <p className="text-center text-sm text-white/60 px-4 mt-2">
                   Authenticating...
                 </p>
               )}
             </div>
             
             {isMobile && !authError && (
-              <p className="text-center text-xs text-white/60 px-4">
-                Connect your wallet to get started. Reown AppKit supports all major mobile wallets including Coinbase Wallet, MetaMask, WalletConnect, and more.
+              <p className="text-center text-xs text-white/60 px-4 mt-2">
+                Connect your wallet to get started. Select a wallet from the options above.
               </p>
             )}
           </div>
