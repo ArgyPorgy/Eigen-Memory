@@ -39,76 +39,68 @@ export default function Landing() {
   }, []);
 
   // Handle wallet connection/disconnection
+  // This effect monitors wallet connection state and triggers authentication when appropriate
   useEffect(() => {
-    console.log('Auth useEffect:', { isConnected, address, userInitiatedConnection, pendingConnection, walletAddress, isConnecting });
-    
+    // If not connected or no address, reset everything
+    if (!isConnected || !address) {
+      // Only reset if we're actually disconnected, not during a brief disconnect/reconnect
+      if (!isConnected) {
+        setWalletAddress(null);
+        setIsConnecting(false);
+        setAuthError(null);
+        // CRITICAL: Don't reset userInitiatedConnection here - keep it during reconnects
+        // Some wallets (like Phantom) disconnect and reconnect when switching accounts
+        previousAddressRef.current = undefined;
+        previousConnectedRef.current = false;
+      }
+      return;
+    }
+
     // Store previous values before updating
     const wasConnected = previousConnectedRef.current;
     const previousAddress = previousAddressRef.current;
     
-    // Check if connection state changed from disconnected to connected
-    const justConnected = !wasConnected && isConnected && address;
-    const addressChanged = previousAddress && previousAddress !== address && isConnected;
+    // Check various connection scenarios
+    const justConnected = !wasConnected && isConnected && address; // Wallet just connected
+    const addressChanged = previousAddress && previousAddress !== address && isConnected; // User switched accounts
+    const isNewAddress = address !== authAttemptRef.current; // Haven't tried authenticating this address yet
     
-    console.log('Connection state:', { wasConnected, previousAddress, justConnected, addressChanged });
-    
-    // Update previous state AFTER checking
+    // Update refs for next comparison
     previousConnectedRef.current = isConnected;
-    if (address) {
-      previousAddressRef.current = address;
-    }
+    previousAddressRef.current = address;
 
-    if (!isConnected || !address) {
-      // Reset state when disconnected
-      setWalletAddress(null);
-      setIsConnecting(false);
-      setAuthError(null);
-      authAttemptRef.current = null;
-      setUserInitiatedConnection(false);
-      setPendingConnection(false);
-      previousAddressRef.current = undefined;
-      previousConnectedRef.current = false;
-      return;
-    }
-
-    // If connection failed or was canceled, reset the pending state
+    // If connection failed or was canceled, reset the flags
     if (connectError) {
-      console.log('Connect error detected:', connectError);
       setPendingConnection(false);
       setUserInitiatedConnection(false);
+      authAttemptRef.current = null;
       return;
     }
 
-    // Only authenticate if user explicitly clicked a wallet button
+    // CRITICAL CHECK: Only authenticate if user explicitly clicked a wallet button
+    // This prevents auto-authentication on page load when Wagmi auto-reconnects
     if (!userInitiatedConnection) {
-      console.log('Skipping auth: user did not initiate connection');
       return;
     }
 
-    // If we have a successful connection (just connected or address changed)
-    if (justConnected || addressChanged) {
-      console.log('Connection detected, checking auth conditions...');
-      
-      // Ensure we're on Ethereum mainnet (don't block on this)
+    // Authenticate if ANY of these conditions are true:
+    // 1. Just connected (new connection from disconnected state)
+    // 2. Address changed (user switched accounts in their wallet)
+    // 3. This is a new address we haven't attempted to authenticate yet
+    // AND we're not already in the process of authenticating
+    if ((justConnected || addressChanged || isNewAddress) && !isConnecting) {
+      // Try to switch to Ethereum mainnet (non-blocking)
       try {
         switchChain({ chainId: mainnet.id });
       } catch (error) {
         // Ignore errors if already on mainnet or user rejects
       }
 
-      // Start authentication if we haven't already attempted this address
-      if (address !== authAttemptRef.current && !isConnecting) {
-        console.log('Starting authentication for address:', address);
-        setWalletAddress(address);
-        setAuthError(null);
-        authAttemptRef.current = address;
-        setPendingConnection(false);
-        authenticateWithServer(address);
-      } else {
-        console.log('Skipping auth: already attempted or connecting', { authAttemptRef: authAttemptRef.current, isConnecting });
-      }
-    } else {
-      console.log('No connection change detected, skipping auth');
+      setWalletAddress(address);
+      setAuthError(null);
+      authAttemptRef.current = address; // Mark this address as attempted
+      setPendingConnection(false);
+      authenticateWithServer(address); // Trigger the auth flow
     }
   }, [isConnected, address, switchChain, userInitiatedConnection, connectError, isConnecting]);
 
@@ -117,15 +109,12 @@ export default function Landing() {
   const authenticateWithServer = async (address: string) => {
     // Prevent multiple simultaneous authentication attempts
     if (isConnecting) {
-      console.log('Already connecting, skipping...');
       return;
     }
 
-    console.log('Starting authentication for:', address);
     setIsConnecting(true);
     try {
       // Request nonce from server
-      console.log('Requesting nonce...');
       const nonceResponse = await apiRequest("POST", "/api/auth/nonce", {
         walletAddress: address,
       });
@@ -136,11 +125,9 @@ export default function Landing() {
       }
 
       const { message } = await nonceResponse.json();
-      console.log('Got nonce, requesting signature...');
 
       // Request signature from user using Wagmi
       const signature = await signMessageAsync({ message });
-      console.log('Got signature, authenticating with server...');
 
       // Authenticate with server
       const authResponse = await apiRequest("POST", "/api/auth/wallet", {
@@ -154,7 +141,6 @@ export default function Landing() {
       }
 
       const authData = await authResponse.json();
-      console.log('Authentication response:', authData);
 
       if (authData.needsUsername) {
         // User needs to set username
@@ -197,6 +183,8 @@ export default function Landing() {
   const handleDisconnectAndRetry = async () => {
     try {
       await disconnect();
+      
+      // Reset all state
       setWalletAddress(null);
       setAuthError(null);
       authAttemptRef.current = null;
@@ -205,6 +193,7 @@ export default function Landing() {
       setPendingConnection(false);
       previousAddressRef.current = undefined;
       previousConnectedRef.current = false;
+      
       toast({
         title: "Disconnected",
         description: "Please connect your wallet again with the account you want to use.",
@@ -264,8 +253,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
                     if (connector) {
-                      setPendingConnection(true);
                       setUserInitiatedConnection(true);
+                      setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -287,8 +276,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
                     if (connector) {
-                      setPendingConnection(true);
                       setUserInitiatedConnection(true);
+                      setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -310,8 +299,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
                     if (connector) {
-                      setPendingConnection(true);
                       setUserInitiatedConnection(true);
+                      setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -328,39 +317,36 @@ export default function Landing() {
                   <span className="text-xs sm:text-sm font-medium">OKX</span>
                 </Button>
 
-                       {/* Phantom */}
-                       <Button
-                         onClick={() => {
-                           console.log('Phantom button clicked');
-                           const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
-                           console.log('Found connector:', connector?.name);
-                           if (connector) {
-                             setUserInitiatedConnection(true);
-                             setPendingConnection(true);
-                             console.log('Calling connect...');
-                             connect({ connector, chainId: mainnet.id });
-                           } else {
-                             toast({
-                               title: "Phantom Not Found",
-                               description: "Please install Phantom to continue.",
-                               variant: "destructive",
-                             });
-                           }
-                         }}
-                         disabled={isPending || isConnecting}
-                         className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                       >
-                         <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                         <span className="text-xs sm:text-sm font-medium">Phantom</span>
-                       </Button>
+                {/* Phantom */}
+                <Button
+                  onClick={() => {
+                    const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
+                    if (connector) {
+                      setUserInitiatedConnection(true);
+                      setPendingConnection(true);
+                      connect({ connector, chainId: mainnet.id });
+                    } else {
+                      toast({
+                        title: "Phantom Not Found",
+                        description: "Please install Phantom to continue.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={isPending || isConnecting}
+                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                >
+                  <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                  <span className="text-xs sm:text-sm font-medium">Phantom</span>
+                </Button>
 
                 {/* Rabby */}
                 <Button
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
                     if (connector) {
-                      setPendingConnection(true);
                       setUserInitiatedConnection(true);
+                      setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -382,8 +368,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'injected');
                     if (connector) {
-                      setPendingConnection(true);
                       setUserInitiatedConnection(true);
+                      setPendingConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({

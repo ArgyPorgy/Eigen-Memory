@@ -423,11 +423,20 @@ export default function Game() {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
-                  // Disconnect wallet using Wagmi
-                  disconnect();
-                  // Then logout from server
-                  await fetch("/api/logout", { credentials: "include" });
-                  window.location.href = "/";
+                  try {
+                    // Disconnect wallet using Wagmi (await to ensure it completes)
+                    await disconnect();
+                    // Then logout from server
+                    await fetch("/api/logout", { credentials: "include" });
+                    // Clear any cached queries
+                    queryClient.clear();
+                    // Redirect to landing page
+                    window.location.href = "/";
+                  } catch (error) {
+                    console.error("Logout error:", error);
+                    // Still redirect even if there's an error
+                    window.location.href = "/";
+                  }
                 }}
                 data-testid="button-logout"
                 className="hover:text-red-500 hover:bg-red-500/10 transition-colors px-2 sm:px-3"
