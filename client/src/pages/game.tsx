@@ -380,7 +380,7 @@ export default function Game() {
   const handleTwitterShare = () => {
     const gameUrl = window.location.origin;
     const scoreCardUrl = `${gameUrl}/api/score-card?username=${encodeURIComponent(user?.username || 'Player')}&totalScore=${finalTotal}&baseScore=${finalScore}&bonus=${finalBonus}`;
-    const tweetText = `GM \n\nI just scored ${finalTotal} points playing Mismatched by EigenTribe!\n\nCheck out my score: ${scoreCardUrl}\n\nYou should try it too: ${gameUrl}\n\n#mismatched`;
+    const tweetText = `GM \n\nI just scored ${finalTotal} points playing Mismatched by @eigentribe!\n\nCheck out my score: ${scoreCardUrl}\n\nYou should try it too: ${gameUrl}\n\n`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
     window.open(twitterUrl, '_blank', 'noopener,noreferrer');
   };

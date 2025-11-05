@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useConnect, useAccount, useSignMessage, useSwitchChain } from "wagmi";
@@ -7,10 +7,18 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { UsernameSetup } from "@/components/UsernameSetup";
 
+// Detect if user is on mobile device
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (window.innerWidth <= 768);
+};
+
 export default function Landing() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [needsUsername, setNeedsUsername] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -18,6 +26,10 @@ export default function Landing() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
+
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+  }, []);
 
   // Handle MetaMask connection only (for main button)
   const handleConnectWallet = async () => {
@@ -30,22 +42,42 @@ export default function Landing() {
         return;
       }
 
-      // Find MetaMask connector only
-      const metaMaskConnector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+      // On mobile, prioritize Coinbase Wallet (better mobile support) or injected
+      // On desktop, prioritize MetaMask
+      let connector = null;
       
-      if (!metaMaskConnector) {
+      if (isMobile) {
+        // On mobile, try Coinbase Wallet first (has better mobile deep link support)
+        connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
+        // Fallback to injected if Coinbase not available
+        if (!connector) {
+          connector = connectors.find(c => c.id === 'injected' || c.id === 'metaMask');
+        }
+      } else {
+        // On desktop, prefer MetaMask
+        connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+      }
+      
+      // If still no connector, try injected as last resort
+      if (!connector) {
+        connector = connectors.find(c => c.id === 'injected') || connectors[0];
+      }
+      
+      if (!connector) {
         toast({
-          title: "MetaMask Not Found",
-          description: "MetaMask is not installed. Please install MetaMask or choose another wallet option below.",
+          title: "Wallet Not Found",
+          description: isMobile 
+            ? "No wallet detected. Please install a mobile wallet like Coinbase Wallet or MetaMask, or use a wallet option below."
+            : "MetaMask is not installed. Please install MetaMask or choose another wallet option below.",
           variant: "destructive",
         });
         setIsConnecting(false);
         return;
       }
 
-      // Connect wallet using Wagmi with MetaMask only
+      // Connect wallet using Wagmi
       connect(
-        { connector: metaMaskConnector, chainId: mainnet.id },
+        { connector, chainId: mainnet.id },
         {
           onSuccess: async (data) => {
             const address = data.accounts[0];
@@ -107,10 +139,17 @@ export default function Landing() {
     try {
       let connector = null;
       
-      // Find the appropriate connector
+      // Find the appropriate connector - prioritize mobile-friendly connectors on mobile
       if (walletId === 'metamask') {
-        connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+        // MetaMask - works on both mobile and desktop
+        if (isMobile) {
+          // On mobile, try injected first (might be MetaMask mobile browser)
+          connector = connectors.find(c => c.id === 'injected' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+        } else {
+          connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
+        }
       } else if (walletId === 'coinbase') {
+        // Coinbase Wallet - excellent mobile support
         connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
       } else if (walletId === 'okx') {
         connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
@@ -118,6 +157,11 @@ export default function Landing() {
         connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
       } else if (walletId === 'rabby') {
         connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
+      }
+      
+      // On mobile, if no specific connector found, try injected as fallback
+      if (!connector && isMobile) {
+        connector = connectors.find(c => c.id === 'injected');
       }
 
       if (!connector) {
@@ -293,9 +337,15 @@ export default function Landing() {
                 disabled={isConnecting || isPending}
                 data-testid="button-connect-wallet"
               >
-                {isConnecting || isPending ? "Connecting..." : "Connect Wallet"}
+                {isConnecting || isPending ? "Connecting..." : isMobile ? "Connect Wallet" : "Connect Wallet"}
               </Button>
             </div>
+            
+            {isMobile && (
+              <p className="text-center text-xs text-white/60 px-4">
+                On mobile? Use Coinbase Wallet, MetaMask mobile app, or any browser wallet installed on your device.
+              </p>
+            )}
 
             {/* Always show all wallet options */}
             <div className="space-y-2">
