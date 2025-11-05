@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Leaderboard route
   app.get("/api/leaderboard", async (_req, res) => {
     try {
-      const leaderboard = await storage.getLeaderboard(10);
+      const leaderboard = await storage.getLeaderboard(20);
       res.json(leaderboard);
     } catch (error) {
       console.error("Error fetching leaderboard:", error);

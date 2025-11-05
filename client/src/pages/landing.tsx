@@ -20,11 +20,14 @@ export default function Landing() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [userInitiatedConnection, setUserInitiatedConnection] = useState(false); // Track if user clicked a button
+  const [pendingConnection, setPendingConnection] = useState(false); // Track if connection attempt is in progress
+  const previousAddressRef = useRef<string | undefined>(undefined); // Track previous address to detect new connections
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authAttemptRef = useRef<string | null>(null); // Track which address we're trying to auth
   
-  const { connect, connectors, isPending } = useConnect();
+  const { connect, connectors, isPending, error: connectError } = useConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
@@ -42,7 +45,37 @@ export default function Landing() {
       setIsConnecting(false);
       setAuthError(null);
       authAttemptRef.current = null;
+      setUserInitiatedConnection(false);
+      setPendingConnection(false);
+      previousAddressRef.current = undefined;
       return;
+    }
+
+    // Check if this is a new connection (address changed from undefined/null to a value)
+    const isNewConnection = previousAddressRef.current === undefined && address !== undefined;
+    previousAddressRef.current = address;
+
+    // If connection failed or was canceled, reset the pending state
+    // Check after a small delay to allow connection to complete
+    if (pendingConnection && connectError) {
+      setTimeout(() => {
+        setPendingConnection(false);
+        setUserInitiatedConnection(false);
+      }, 100);
+      return;
+    }
+
+    // Only authenticate if:
+    // 1. User explicitly clicked a wallet button (userInitiatedConnection is true)
+    // 2. This is a new connection (not a page reload with existing connection)
+    // 3. Connection is pending (user just clicked connect)
+    if (!userInitiatedConnection || !pendingConnection) {
+      return;
+    }
+
+    // Only proceed if we have a successful new connection
+    if (isNewConnection && isConnected) {
+      setPendingConnection(false); // Mark connection as complete
     }
 
     // Ensure we're on Ethereum mainnet
@@ -56,13 +89,13 @@ export default function Landing() {
 
     // If address changed or we haven't authenticated yet, start authentication
     // Only authenticate if we haven't already attempted this address
-    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
+    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address && isNewConnection) {
       setWalletAddress(address);
       setAuthError(null);
       authAttemptRef.current = address;
       authenticateWithServer(address);
     }
-  }, [isConnected, address, switchChain]);
+  }, [isConnected, address, switchChain, userInitiatedConnection, pendingConnection, connectError]);
 
   // Handle wallet connections using Wagmi hooks
 
@@ -164,37 +197,37 @@ export default function Landing() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(to bottom right, #0a001f, #21157d, #2d1b69)' }}>
-        {/* Banner */}
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(to bottom right, #0a001f, #21157d, #2d1b69)' }}>
+      {/* Banner */}
         <div className="w-full h-48 sm:h-64 md:h-80 lg:h-96 bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center overflow-hidden">
-          <img
-            src="https://pbs.twimg.com/profile_banners/1831526365163876352/1758084437/1500x500"
-            alt="EigenTribe Banner"
-            className="w-full h-full object-cover opacity-90"
-          />
-        </div>
+        <img
+          src="https://pbs.twimg.com/profile_banners/1831526365163876352/1758084437/1500x500"
+          alt="EigenTribe Banner"
+          className="w-full h-full object-cover opacity-90"
+        />
+      </div>
 
-        {/* Main Content */}
+      {/* Main Content */}
         <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 sm:p-6 -mt-24 sm:-mt-32 relative z-10">
           <div className="max-w-md w-full space-y-6 sm:space-y-8">
-            {/* Logo */}
-            <div className="flex justify-center">
-              <img
-                src="https://pbs.twimg.com/profile_images/1967450224168943616/Za_8hiTn_400x400.jpg"
-                alt="EigenTribe Logo"
+          {/* Logo */}
+          <div className="flex justify-center">
+            <img
+              src="https://pbs.twimg.com/profile_images/1967450224168943616/Za_8hiTn_400x400.jpg"
+              alt="EigenTribe Logo"
                 className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-2xl"
-              />
-            </div>
+            />
+          </div>
 
-            {/* Title and Tagline */}
+          {/* Title and Tagline */}
             <div className="text-center space-y-3 sm:space-y-4">
               <h1 className="text-4xl sm:text-5xl font-bold text-white" data-testid="text-game-title">
-                Mismatched 
-              </h1>
+              Mismatched 
+            </h1>
               <p className="text-base sm:text-lg" style={{ color: '#c4b5fd' }}>
-                Match tiles, beat the clock, climb the leaderboard.
-              </p>
-            </div>
+              Match tiles, beat the clock, climb the leaderboard.
+            </p>
+          </div>
 
             {/* Available Wallets */}
             <div className="flex flex-col items-center gap-4 pt-2 sm:pt-4">
@@ -206,6 +239,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -227,6 +262,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -248,6 +285,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -269,6 +308,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -290,6 +331,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -311,6 +354,8 @@ export default function Landing() {
                   onClick={() => {
                     const connector = connectors.find(c => c.id === 'injected');
                     if (connector) {
+                      setPendingConnection(true);
+                      setUserInitiatedConnection(true);
                       connect({ connector, chainId: mainnet.id });
                     } else {
                       toast({
@@ -337,15 +382,15 @@ export default function Landing() {
                     {authError}
                   </p>
                   <div className="flex justify-center">
-                    <Button
+            <Button
                       variant="outline"
                       size="sm"
                       onClick={handleDisconnectAndRetry}
                       className="text-white border-white/30 hover:bg-white/10"
                     >
                       Disconnect & Try Again
-                    </Button>
-                  </div>
+            </Button>
+          </div>
                 </div>
               )}
               
@@ -361,11 +406,11 @@ export default function Landing() {
                 Connect your wallet to get started. Select a wallet from the options above.
               </p>
             )}
-          </div>
         </div>
+      </div>
 
-        {/* Decorative Elements */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* Decorative Elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-1/4 left-10 w-32 h-32 sm:w-64 sm:h-64 bg-purple-500 rounded-full opacity-10 blur-3xl"></div>
           <div className="absolute bottom-1/4 right-10 w-32 h-32 sm:w-64 sm:h-64 rounded-full opacity-10 blur-3xl" style={{ background: '#21157d' }}></div>
         </div>
