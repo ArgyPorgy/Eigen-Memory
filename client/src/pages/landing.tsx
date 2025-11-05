@@ -40,11 +40,15 @@ export default function Landing() {
 
   // Handle wallet connection/disconnection
   useEffect(() => {
-    // Check if connection state changed from disconnected to connected
-    const justConnected = !previousConnectedRef.current && isConnected && address;
-    const addressChanged = previousAddressRef.current && previousAddressRef.current !== address;
+    // Store previous values before updating
+    const wasConnected = previousConnectedRef.current;
+    const previousAddress = previousAddressRef.current;
     
-    // Update previous state
+    // Check if connection state changed from disconnected to connected
+    const justConnected = !wasConnected && isConnected && address;
+    const addressChanged = previousAddress && previousAddress !== address && isConnected;
+    
+    // Update previous state AFTER checking
     previousConnectedRef.current = isConnected;
     if (address) {
       previousAddressRef.current = address;
@@ -72,37 +76,30 @@ export default function Landing() {
       return;
     }
 
-    // Only authenticate if:
-    // 1. User explicitly clicked a wallet button (userInitiatedConnection is true)
-    // 2. Connection is pending (user just clicked connect)
-    // 3. We just connected (transitioned from disconnected to connected) OR address changed
+    // Only authenticate if user explicitly clicked a wallet button
     if (!userInitiatedConnection || !pendingConnection) {
       return;
     }
 
-    // Check if we have a successful connection (either just connected or address changed)
-    if (!justConnected && !addressChanged) {
-      return;
-    }
+    // If we have a successful connection (either just connected or address changed after user click)
+    if (justConnected || (addressChanged && pendingConnection)) {
+      // Mark connection as complete
+      setPendingConnection(false);
 
-    // Mark connection as complete before authenticating
-    setPendingConnection(false);
-
-    // Ensure we're on Ethereum mainnet (don't block on this)
-    if (isConnected) {
+      // Ensure we're on Ethereum mainnet (don't block on this)
       try {
         switchChain({ chainId: mainnet.id });
       } catch (error) {
         // Ignore errors if already on mainnet or user rejects
       }
-    }
 
-    // Start authentication if we haven't already attempted this address
-    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
-      setWalletAddress(address);
-      setAuthError(null);
-      authAttemptRef.current = address;
-      authenticateWithServer(address);
+      // Start authentication if we haven't already attempted this address
+      if (address && address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
+        setWalletAddress(address);
+        setAuthError(null);
+        authAttemptRef.current = address;
+        authenticateWithServer(address);
+      }
     }
   }, [isConnected, address, switchChain, userInitiatedConnection, pendingConnection, connectError, walletAddress, isConnecting]);
 

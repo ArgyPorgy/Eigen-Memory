@@ -47,7 +47,7 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; " +
     "font-src 'self' https://fonts.gstatic.com data:; " +
     "img-src 'self' data: https: blob:; " +
-    "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; " +
+    "connect-src 'self' https: wss: ws: https://fonts.googleapis.com https://fonts.gstatic.com https://metamask-sdk.api.cx.metamask.io https://mm-sdk-analytics.api.cx.metamask.io https://pulse.walletconnect.org https://api.web3modal.org https://api.reown.com https://cca-lite.coinbase.com https://cloudflare-eth.com; " +
     "worker-src 'self' blob:; " +
     "frame-ancestors 'none'; " +
     "base-uri 'self'; " +
