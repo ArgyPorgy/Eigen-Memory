@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AppKitConnectButton } from "@reown/appkit/react";
-import { useAccount, useSignMessage, useSwitchChain } from "wagmi";
+import { useAccount, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,21 +20,37 @@ export default function Landing() {
   const [needsUsername, setNeedsUsername] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authAttemptRef = useRef<string | null>(null); // Track which address we're trying to auth
   
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
+  const { disconnect } = useDisconnect();
 
   useEffect(() => {
     setIsMobile(isMobileDevice());
   }, []);
 
-  // Handle authentication when wallet connects via ConnectKit
+  // Handle wallet connection/disconnection
   useEffect(() => {
-    if (isConnected && address && !isConnecting && !walletAddress) {
+    if (!isConnected || !address) {
+      // Reset state when disconnected
+      setWalletAddress(null);
+      setIsConnecting(false);
+      setAuthError(null);
+      authAttemptRef.current = null;
+      return;
+    }
+
+    // If address changed or we haven't authenticated yet, start authentication
+    // Only authenticate if we haven't already attempted this address
+    if (address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
       setWalletAddress(address);
+      setAuthError(null);
+      authAttemptRef.current = address;
       authenticateWithServer(address);
     }
   }, [isConnected, address]);
@@ -43,11 +59,22 @@ export default function Landing() {
   // No need for manual connection logic anymore
 
   const authenticateWithServer = async (address: string) => {
+    // Prevent multiple simultaneous authentication attempts
+    if (isConnecting) {
+      return;
+    }
+
+    setIsConnecting(true);
     try {
       // Request nonce from server
       const nonceResponse = await apiRequest("POST", "/api/auth/nonce", {
         walletAddress: address,
       });
+
+      if (!nonceResponse.ok) {
+        const errorData = await nonceResponse.json().catch(() => ({ message: "Failed to get authentication nonce" }));
+        throw new Error(errorData.message || "Failed to get authentication nonce");
+      }
 
       const { message } = await nonceResponse.json();
 
@@ -60,6 +87,11 @@ export default function Landing() {
         signature,
       });
 
+      if (!authResponse.ok) {
+        const errorData = await authResponse.json().catch(() => ({ message: "Authentication failed" }));
+        throw new Error(errorData.message || "Authentication failed");
+      }
+
       const authData = await authResponse.json();
 
       if (authData.needsUsername) {
@@ -71,19 +103,48 @@ export default function Landing() {
         window.location.href = "/";
       }
     } catch (error: any) {
-      if (error.message?.includes("User rejected")) {
+      console.error("Authentication error:", error);
+      
+      const errorMessage = error.message || "Failed to authenticate. Please try again.";
+      setAuthError(errorMessage);
+      
+      if (error.message?.includes("User rejected") || error.message?.includes("rejected")) {
         toast({
           title: "Signature Rejected",
           description: "You need to sign the message to continue.",
           variant: "destructive",
         });
+      } else if (error.message?.includes("already linked") || error.message?.includes("already exists")) {
+        toast({
+          title: "Account Already Linked",
+          description: "This wallet address is already linked to an account. Please switch accounts in your wallet or disconnect and try again with a different account.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Authentication Failed",
-          description: error.message || "Failed to authenticate",
+          description: errorMessage,
           variant: "destructive",
         });
       }
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnectAndRetry = async () => {
+    try {
+      await disconnect();
+      setWalletAddress(null);
+      setAuthError(null);
+      authAttemptRef.current = null;
+      setIsConnecting(false);
+      toast({
+        title: "Disconnected",
+        description: "Please connect your wallet again with the account you want to use.",
+      });
+    } catch (error) {
+      console.error("Error disconnecting:", error);
     }
   };
 
@@ -128,13 +189,38 @@ export default function Landing() {
             </div>
 
             {/* Connect Wallet Button - Using Reown AppKit for better mobile UX */}
-            <div className="flex justify-center pt-2 sm:pt-4">
+            <div className="flex flex-col items-center gap-3 pt-2 sm:pt-4">
               <div className="w-full sm:w-auto [&_button]:text-base [&_button]:sm:text-lg [&_button]:px-8 [&_button]:sm:px-12 [&_button]:py-5 [&_button]:sm:py-6 [&_button]:rounded-full [&_button]:shadow-xl [&_button]:transition-all [&_button]:duration-300 [&_button]:hover:shadow-2xl [&_button]:hover:scale-105 [&_button]:w-full [&_button]:sm:w-auto">
                 <AppKitConnectButton />
               </div>
+              
+              {/* Show error message and retry option if authentication failed */}
+              {authError && isConnected && (
+                <div className="w-full max-w-md space-y-2">
+                  <p className="text-center text-sm text-red-300 px-4">
+                    {authError}
+                  </p>
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnectAndRetry}
+                      className="text-white border-white/30 hover:bg-white/10"
+                    >
+                      Disconnect & Try Again
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {isConnecting && (
+                <p className="text-center text-sm text-white/60 px-4">
+                  Authenticating...
+                </p>
+              )}
             </div>
             
-            {isMobile && (
+            {isMobile && !authError && (
               <p className="text-center text-xs text-white/60 px-4">
                 Connect your wallet to get started. Reown AppKit supports all major mobile wallets including Coinbase Wallet, MetaMask, WalletConnect, and more.
               </p>

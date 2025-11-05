@@ -5,6 +5,9 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+// Set Express environment mode based on NODE_ENV
+app.set("env", process.env.NODE_ENV || "development");
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
