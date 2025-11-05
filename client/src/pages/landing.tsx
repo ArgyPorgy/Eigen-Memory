@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useConnect, useAccount, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,69 +22,33 @@ export default function Landing() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [userInitiatedConnection, setUserInitiatedConnection] = useState(false); // Track if user clicked a button
-  const [pendingConnection, setPendingConnection] = useState(false); // Track if connection attempt is in progress
-  const previousConnectedRef = useRef<boolean>(false); // Track previous connection state
-  const previousAddressRef = useRef<string | undefined>(undefined); // Track previous address
+  const previousConnectedRef = useRef<boolean>(false);
+  const previousAddressRef = useRef<string | undefined>(undefined);
+  const authAttemptRef = useRef<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const authAttemptRef = useRef<string | null>(null); // Track which address we're trying to auth
   
-  const { connect, connectors, isPending, error: connectError } = useConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
   const { disconnect } = useDisconnect();
 
-  // On mount, ensure we're in a clean state - disconnect any auto-connected wallets
+  // On mount, ensure we're in a clean state
   useEffect(() => {
     setIsMobile(isMobileDevice());
-    
-    // Disconnect ALL wallets on page load to ensure clean state
-    const cleanupWallets = async () => {
-      try {
-        // Disconnect via Wagmi
-        if (isConnected) {
-          await disconnect();
-        }
-        
-        // Also try to disconnect at provider level for all wallets
-        if (typeof window !== 'undefined' && (window as any).ethereum) {
-          const ethereum = (window as any).ethereum;
-          
-          if (ethereum.providers) {
-            // Multiple providers
-            for (const provider of ethereum.providers) {
-              try {
-                if (provider.disconnect) await provider.disconnect();
-              } catch (e) {
-                // Ignore errors
-              }
-            }
-          }
-        }
-      } catch (error) {
-        // Ignore errors on cleanup
-      }
-    };
-    
-    cleanupWallets();
   }, []);
 
-  // Handle wallet connection/disconnection
-  // This effect monitors wallet connection state and triggers authentication when appropriate
+  // Handle wallet connection and trigger authentication
   useEffect(() => {
     // If not connected or no address, reset everything
     if (!isConnected || !address) {
-      // Only reset if we're actually disconnected, not during a brief disconnect/reconnect
       if (!isConnected) {
         setWalletAddress(null);
         setIsConnecting(false);
         setAuthError(null);
-        // CRITICAL: Don't reset userInitiatedConnection here - keep it during reconnects
-        // Some wallets (like Phantom) disconnect and reconnect when switching accounts
         previousAddressRef.current = undefined;
         previousConnectedRef.current = false;
+        authAttemptRef.current = null;
       }
       return;
     }
@@ -93,33 +58,15 @@ export default function Landing() {
     const previousAddress = previousAddressRef.current;
     
     // Check various connection scenarios
-    const justConnected = !wasConnected && isConnected && address; // Wallet just connected
-    const addressChanged = previousAddress && previousAddress !== address && isConnected; // User switched accounts
-    const isNewAddress = address !== authAttemptRef.current; // Haven't tried authenticating this address yet
+    const justConnected = !wasConnected && isConnected && address;
+    const addressChanged = previousAddress && previousAddress !== address && isConnected;
+    const isNewAddress = address !== authAttemptRef.current;
     
     // Update refs for next comparison
     previousConnectedRef.current = isConnected;
     previousAddressRef.current = address;
 
-    // If connection failed or was canceled, reset the flags
-    if (connectError) {
-      setPendingConnection(false);
-      setUserInitiatedConnection(false);
-      authAttemptRef.current = null;
-      return;
-    }
-
-    // CRITICAL CHECK: Only authenticate if user explicitly clicked a wallet button
-    // This prevents auto-authentication on page load when Wagmi auto-reconnects
-    if (!userInitiatedConnection) {
-      return;
-    }
-
-    // Authenticate if ANY of these conditions are true:
-    // 1. Just connected (new connection from disconnected state)
-    // 2. Address changed (user switched accounts in their wallet)
-    // 3. This is a new address we haven't attempted to authenticate yet
-    // AND we're not already in the process of authenticating
+    // Authenticate if wallet just connected or address changed, and we haven't tried this address yet
     if ((justConnected || addressChanged || isNewAddress) && !isConnecting) {
       // Try to switch to Ethereum mainnet (non-blocking)
       try {
@@ -130,13 +77,10 @@ export default function Landing() {
 
       setWalletAddress(address);
       setAuthError(null);
-      authAttemptRef.current = address; // Mark this address as attempted
-      setPendingConnection(false);
-      authenticateWithServer(address); // Trigger the auth flow
+      authAttemptRef.current = address;
+      authenticateWithServer(address);
     }
-  }, [isConnected, address, switchChain, userInitiatedConnection, connectError, isConnecting]);
-
-  // Handle wallet connections using Wagmi hooks
+  }, [isConnected, address, switchChain, isConnecting]);
 
   const authenticateWithServer = async (address: string) => {
     // Prevent multiple simultaneous authentication attempts
@@ -221,8 +165,6 @@ export default function Landing() {
       setAuthError(null);
       authAttemptRef.current = null;
       setIsConnecting(false);
-      setUserInitiatedConnection(false);
-      setPendingConnection(false);
       previousAddressRef.current = undefined;
       previousConnectedRef.current = false;
       
@@ -275,174 +217,25 @@ export default function Landing() {
             </p>
           </div>
 
-            {/* Available Wallets */}
+            {/* Connect Wallet Section */}
             <div className="flex flex-col items-center gap-4 pt-2 sm:pt-4">
-              <p className="text-sm sm:text-base text-white/80 mb-2">Available Wallets</p>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 w-full max-w-md">
-                {/* MetaMask */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'metaMask' || c.name.toLowerCase().includes('metamask'));
-                    if (connector) {
-                      // First, disconnect any currently connected wallets
-                      if (isConnected) {
-                        await disconnect();
-                      }
-                      
-                      // Clear any pending auth attempts
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "MetaMask Not Found",
-                        description: "Please install MetaMask to continue.",
-                        variant: "destructive",
-                      });
-                    }
+              {/* RainbowKit Connect Button */}
+              <div className="w-full flex justify-center">
+                <ConnectButton 
+                  label="Connect Wallet"
+                  accountStatus={{
+                    smallScreen: 'avatar',
+                    largeScreen: 'full',
                   }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/metamask.jpg" alt="MetaMask" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">MetaMask</span>
-                </Button>
-
-                {/* Coinbase Wallet */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase'));
-                    if (connector) {
-                      if (isConnected) await disconnect();
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "Coinbase Wallet Not Found",
-                        description: "Please install Coinbase Wallet to continue.",
-                        variant: "destructive",
-                      });
-                    }
+                  chainStatus={{
+                    smallScreen: 'icon',
+                    largeScreen: 'full',
                   }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/coinbase.png" alt="Coinbase Wallet" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">Coinbase</span>
-                </Button>
-
-                {/* OKX Wallet */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'okx' || c.name.toLowerCase().includes('okx'));
-                    if (connector) {
-                      if (isConnected) await disconnect();
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "OKX Wallet Not Found",
-                        description: "Please install OKX Wallet to continue.",
-                        variant: "destructive",
-                      });
-                    }
+                  showBalance={{
+                    smallScreen: false,
+                    largeScreen: true,
                   }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/okx.jpg" alt="OKX Wallet" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">OKX</span>
-                </Button>
-
-                {/* Phantom */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
-                    if (connector) {
-                      if (isConnected) await disconnect();
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "Phantom Not Found",
-                        description: "Please install Phantom to continue.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">Phantom</span>
-                </Button>
-
-                {/* Rabby */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'rabby' || c.name.toLowerCase().includes('rabby'));
-                    if (connector) {
-                      if (isConnected) await disconnect();
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "Rabby Not Found",
-                        description: "Please install Rabby to continue.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/rabby.jpg" alt="Rabby" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">Rabby</span>
-                </Button>
-
-                {/* Injected (for other wallets) */}
-                <Button
-                  onClick={async () => {
-                    const connector = connectors.find(c => c.id === 'injected');
-                    if (connector) {
-                      if (isConnected) await disconnect();
-                      authAttemptRef.current = null;
-                      setAuthError(null);
-                      setUserInitiatedConnection(true);
-                      setPendingConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "No Wallet Found",
-                        description: "Please install a compatible wallet extension.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-white/20 flex items-center justify-center">
-                    <span className="text-lg sm:text-xl">🔌</span>
-                  </div>
-                  <span className="text-xs sm:text-sm font-medium">Other</span>
-                </Button>
+                />
               </div>
               
               {/* Show error message and retry option if authentication failed */}
