@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, type NextFunction, type ErrorRequestHandler } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -25,6 +25,15 @@ declare module 'express-session' {
     authNonce?: string;
     authWalletAddress?: string;
     pendingWalletAddress?: string;
+  }
+}
+
+declare module 'express' {
+  interface Request {
+    user?: any; // User type from schema
+    login?: (user: any, callback: (err?: Error) => void) => void;
+    logout?: (callback: (err?: Error) => void) => void;
+    isAuthenticated?: () => boolean;
   }
 }
 
@@ -99,13 +108,13 @@ app.use((req, res, next) => {
 });
 
 // Error handler
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+const errorHandler: ErrorRequestHandler = (err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
 
   res.status(status).json({ message });
-  throw err;
-});
+};
+app.use(errorHandler);
 
 // Initialize app (async setup)
 let server: any = null;

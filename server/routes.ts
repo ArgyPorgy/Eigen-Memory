@@ -1,5 +1,5 @@
 // API routes
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./walletAuth";
@@ -43,7 +43,7 @@ function cleanupExpiredEntries(force = false) {
   }
 }
 
-function rateLimitMiddleware(req: Request, res: Response, next: () => void) {
+function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
   const key = req.ip || 'unknown';
   const now = Date.now();
   
@@ -70,7 +70,7 @@ function rateLimitMiddleware(req: Request, res: Response, next: () => void) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rate limiting for all API routes
-  app.use('/api', rateLimitMiddleware);
+  app.use('/api', rateLimitMiddleware as any);
   
   // Auth middleware setup
   await setupAuth(app);

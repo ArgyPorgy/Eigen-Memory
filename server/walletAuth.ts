@@ -7,6 +7,19 @@ import connectPg from "connect-pg-simple";
 import { ethers } from "ethers";
 import type { User } from "@shared/schema";
 
+// Type for authenticated requests with Passport methods
+type AuthenticatedRequest = Express.Request & {
+  login?: (user: any, callback: (err?: Error) => void) => void;
+  logout?: (callback: (err?: Error) => void) => void;
+  isAuthenticated?: () => boolean;
+  user?: {
+    id: string;
+    walletAddress: string;
+    username: string;
+    profileImageUrl: string | null;
+  };
+};
+
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const isProduction = !!(process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RENDER);
@@ -71,11 +84,11 @@ export async function setupAuth(app: Express) {
   app.use(passport.session());
 
   // Passport serialization
-  passport.serializeUser((user: Express.User, cb) => {
-    cb(null, (user as any).id);
+  passport.serializeUser((user: any, cb: (err: any, id?: string) => void) => {
+    cb(null, user.id);
   });
   
-  passport.deserializeUser(async (id: string, cb) => {
+  passport.deserializeUser(async (id: string, cb: (err: any, user?: any) => void) => {
     try {
       const user = await storage.getUser(id);
       if (!user) {
@@ -159,22 +172,35 @@ export async function setupAuth(app: Express) {
       }
 
       // User exists - log them in
-      req.login(user, (err) => {
-        if (err) {
-          console.error("Login error:", err);
-          return res.status(500).json({ message: "Failed to create session" });
-        }
-        
-        // Clean up auth session data
+      const authReq = req as AuthenticatedRequest;
+      if (authReq.login) {
+        authReq.login(user, (err: Error | undefined) => {
+          if (err) {
+            console.error("Login error:", err);
+            return res.status(500).json({ message: "Failed to create session" });
+          }
+          
+          // Clean up auth session data
+          delete session.authNonce;
+          delete session.authWalletAddress;
+          delete session.pendingWalletAddress;
+          
+          res.json({ 
+            user,
+            needsUsername: false,
+          });
+        });
+      } else {
+        // Fallback: manually set session
+        session.user = user;
         delete session.authNonce;
         delete session.authWalletAddress;
         delete session.pendingWalletAddress;
-        
         res.json({ 
           user,
           needsUsername: false,
         });
-      });
+      }
     } catch (error) {
       console.error("Authentication error:", error);
       res.status(500).json({ message: "Authentication failed" });
@@ -229,15 +255,23 @@ export async function setupAuth(app: Express) {
       });
 
       // Log user in
-      req.login(user, (err) => {
-        if (err) {
-          console.error("Login error:", err);
-          return res.status(500).json({ message: "Failed to create session" });
-        }
-        
+      const authReq = req as AuthenticatedRequest;
+      if (authReq.login) {
+        authReq.login(user, (err: Error | undefined) => {
+          if (err) {
+            console.error("Login error:", err);
+            return res.status(500).json({ message: "Failed to create session" });
+          }
+          
+          delete session.pendingWalletAddress;
+          res.json({ user });
+        });
+      } else {
+        // Fallback: manually set session
+        session.user = user;
         delete session.pendingWalletAddress;
         res.json({ user });
-      });
+      }
     } catch (error: any) {
       console.error("Username setup error:", error);
       if (error.code === '23505') { // PostgreSQL unique violation
@@ -250,11 +284,13 @@ export async function setupAuth(app: Express) {
   // Get current user
   app.get("/api/auth/user", async (req, res) => {
     try {
-      if (!req.isAuthenticated() || !req.user) {
+      // Check authentication via session
+      const session = req.session as any;
+      if (!session.user || !session.user.id) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const user = req.user as any;
+      const user = session.user;
       const dbUser = await storage.getUser(user.id);
       
       if (!dbUser) {
@@ -270,7 +306,7 @@ export async function setupAuth(app: Express) {
 
   // Logout
   app.get("/api/logout", (req, res) => {
-    req.logout((err) => {
+    const logoutCallback = (err: Error | undefined) => {
       if (err) {
         console.error("Logout error:", err);
         return res.status(500).json({ message: "Failed to logout" });
@@ -283,7 +319,15 @@ export async function setupAuth(app: Express) {
         res.clearCookie("sessionId");
         res.json({ message: "Logged out successfully" });
       });
-    });
+    };
+
+    const authReq = req as AuthenticatedRequest;
+    if (authReq.logout) {
+      authReq.logout(logoutCallback);
+    } else {
+      // Fallback: manually destroy session
+      logoutCallback(undefined);
+    }
   });
 
   // Serialize/Deserialize user for passport
@@ -296,8 +340,12 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   // Check if user is authenticated via session
-  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+  const session = req.session as any;
+  if (!session.user || !session.user.id) {
     return res.status(401).json({ message: "Unauthorized" });
   }
+  // Attach user to request for convenience
+  const authReq = req as AuthenticatedRequest;
+  authReq.user = session.user;
   next();
 };
