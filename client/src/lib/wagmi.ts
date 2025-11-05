@@ -24,4 +24,6 @@ export const wagmiConfig = createConfig({
       ? http(rpcUrl)
       : http('https://cloudflare-eth.com'), // Cloudflare's public Ethereum RPC (more reliable)
   },
+  // Disable auto-reconnect to ensure clean logout
+  ssr: false,
 });

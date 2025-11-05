@@ -34,8 +34,15 @@ export default function Landing() {
   const { switchChain } = useSwitchChain();
   const { disconnect } = useDisconnect();
 
+  // On mount, ensure we're in a clean state - disconnect any auto-connected wallets
   useEffect(() => {
     setIsMobile(isMobileDevice());
+    
+    // If a wallet is already connected on page load (auto-reconnect), disconnect it
+    // User must explicitly click a button to connect
+    if (isConnected && !userInitiatedConnection) {
+      disconnect();
+    }
   }, []);
 
   // Handle wallet connection/disconnection

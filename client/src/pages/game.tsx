@@ -424,16 +424,37 @@ export default function Game() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    // Disconnect wallet using Wagmi (await to ensure it completes)
+                    // 1. Disconnect wallet using Wagmi (await to ensure it completes)
                     await disconnect();
-                    // Then logout from server
+                    
+                    // 2. Clear Wagmi storage to prevent auto-reconnect
+                    if (typeof window !== 'undefined') {
+                      // Clear all Wagmi-related localStorage items
+                      Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith('wagmi.') || key.includes('recentConnector') || key.includes('wallet')) {
+                          localStorage.removeItem(key);
+                        }
+                      });
+                    }
+                    
+                    // 3. Logout from server
                     await fetch("/api/logout", { credentials: "include" });
-                    // Clear any cached queries
+                    
+                    // 4. Clear any cached queries
                     queryClient.clear();
-                    // Redirect to landing page
+                    
+                    // 5. Force a full page reload to ensure complete disconnect
                     window.location.href = "/";
                   } catch (error) {
                     console.error("Logout error:", error);
+                    // Clear storage even if disconnect fails
+                    if (typeof window !== 'undefined') {
+                      Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith('wagmi.') || key.includes('recentConnector') || key.includes('wallet')) {
+                          localStorage.removeItem(key);
+                        }
+                      });
+                    }
                     // Still redirect even if there's an error
                     window.location.href = "/";
                   }
