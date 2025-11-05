@@ -192,7 +192,12 @@ export async function setupAuth(app: Express) {
         });
       } else {
         // Fallback: manually set session
-        session.user = user;
+        session.user = {
+          id: user.id,
+          walletAddress: user.walletAddress,
+          username: user.username,
+          profileImageUrl: user.profileImageUrl,
+        };
         delete session.authNonce;
         delete session.authWalletAddress;
         delete session.pendingWalletAddress;
@@ -268,7 +273,12 @@ export async function setupAuth(app: Express) {
         });
       } else {
         // Fallback: manually set session
-        session.user = user;
+        session.user = {
+          id: user.id,
+          walletAddress: user.walletAddress,
+          username: user.username,
+          profileImageUrl: user.profileImageUrl,
+        };
         delete session.pendingWalletAddress;
         res.json({ user });
       }
@@ -284,14 +294,30 @@ export async function setupAuth(app: Express) {
   // Get current user
   app.get("/api/auth/user", async (req, res) => {
     try {
-      // Check authentication via session
+      // Check authentication via Passport (req.user) or session fallback
+      const authReq = req as AuthenticatedRequest;
       const session = req.session as any;
-      if (!session.user || !session.user.id) {
+      
+      let userId: string | undefined;
+      
+      // First check if Passport populated req.user
+      if (authReq.user && authReq.user.id) {
+        userId = authReq.user.id;
+      }
+      // Fallback to session.user (for manual login)
+      else if (session.user && session.user.id) {
+        userId = session.user.id;
+      }
+      // Check Passport session data (passport.user)
+      else if (session.passport && session.passport.user) {
+        userId = session.passport.user;
+      }
+      
+      if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const user = session.user;
-      const dbUser = await storage.getUser(user.id);
+      const dbUser = await storage.getUser(userId);
       
       if (!dbUser) {
         return res.status(401).json({ message: "User not found" });
