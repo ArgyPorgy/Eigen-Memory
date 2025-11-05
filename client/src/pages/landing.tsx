@@ -40,6 +40,8 @@ export default function Landing() {
 
   // Handle wallet connection/disconnection
   useEffect(() => {
+    console.log('Auth useEffect:', { isConnected, address, userInitiatedConnection, pendingConnection, walletAddress, isConnecting });
+    
     // Store previous values before updating
     const wasConnected = previousConnectedRef.current;
     const previousAddress = previousAddressRef.current;
@@ -47,6 +49,8 @@ export default function Landing() {
     // Check if connection state changed from disconnected to connected
     const justConnected = !wasConnected && isConnected && address;
     const addressChanged = previousAddress && previousAddress !== address && isConnected;
+    
+    console.log('Connection state:', { wasConnected, previousAddress, justConnected, addressChanged });
     
     // Update previous state AFTER checking
     previousConnectedRef.current = isConnected;
@@ -68,24 +72,23 @@ export default function Landing() {
     }
 
     // If connection failed or was canceled, reset the pending state
-    if (pendingConnection && connectError) {
-      setTimeout(() => {
-        setPendingConnection(false);
-        setUserInitiatedConnection(false);
-      }, 100);
+    if (connectError) {
+      console.log('Connect error detected:', connectError);
+      setPendingConnection(false);
+      setUserInitiatedConnection(false);
       return;
     }
 
     // Only authenticate if user explicitly clicked a wallet button
-    if (!userInitiatedConnection || !pendingConnection) {
+    if (!userInitiatedConnection) {
+      console.log('Skipping auth: user did not initiate connection');
       return;
     }
 
-    // If we have a successful connection (either just connected or address changed after user click)
-    if (justConnected || (addressChanged && pendingConnection)) {
-      // Mark connection as complete
-      setPendingConnection(false);
-
+    // If we have a successful connection (just connected or address changed)
+    if (justConnected || addressChanged) {
+      console.log('Connection detected, checking auth conditions...');
+      
       // Ensure we're on Ethereum mainnet (don't block on this)
       try {
         switchChain({ chainId: mainnet.id });
@@ -94,26 +97,35 @@ export default function Landing() {
       }
 
       // Start authentication if we haven't already attempted this address
-      if (address && address !== walletAddress && !isConnecting && authAttemptRef.current !== address) {
+      if (address !== authAttemptRef.current && !isConnecting) {
+        console.log('Starting authentication for address:', address);
         setWalletAddress(address);
         setAuthError(null);
         authAttemptRef.current = address;
+        setPendingConnection(false);
         authenticateWithServer(address);
+      } else {
+        console.log('Skipping auth: already attempted or connecting', { authAttemptRef: authAttemptRef.current, isConnecting });
       }
+    } else {
+      console.log('No connection change detected, skipping auth');
     }
-  }, [isConnected, address, switchChain, userInitiatedConnection, pendingConnection, connectError, walletAddress, isConnecting]);
+  }, [isConnected, address, switchChain, userInitiatedConnection, connectError, isConnecting]);
 
   // Handle wallet connections using Wagmi hooks
 
   const authenticateWithServer = async (address: string) => {
     // Prevent multiple simultaneous authentication attempts
     if (isConnecting) {
+      console.log('Already connecting, skipping...');
       return;
     }
 
+    console.log('Starting authentication for:', address);
     setIsConnecting(true);
     try {
       // Request nonce from server
+      console.log('Requesting nonce...');
       const nonceResponse = await apiRequest("POST", "/api/auth/nonce", {
         walletAddress: address,
       });
@@ -124,9 +136,11 @@ export default function Landing() {
       }
 
       const { message } = await nonceResponse.json();
+      console.log('Got nonce, requesting signature...');
 
       // Request signature from user using Wagmi
       const signature = await signMessageAsync({ message });
+      console.log('Got signature, authenticating with server...');
 
       // Authenticate with server
       const authResponse = await apiRequest("POST", "/api/auth/wallet", {
@@ -140,6 +154,7 @@ export default function Landing() {
       }
 
       const authData = await authResponse.json();
+      console.log('Authentication response:', authData);
 
       if (authData.needsUsername) {
         // User needs to set username
@@ -313,28 +328,31 @@ export default function Landing() {
                   <span className="text-xs sm:text-sm font-medium">OKX</span>
                 </Button>
 
-                {/* Phantom */}
-                <Button
-                  onClick={() => {
-                    const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
-                    if (connector) {
-                      setPendingConnection(true);
-                      setUserInitiatedConnection(true);
-                      connect({ connector, chainId: mainnet.id });
-                    } else {
-                      toast({
-                        title: "Phantom Not Found",
-                        description: "Please install Phantom to continue.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  disabled={isPending || isConnecting}
-                  className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
-                >
-                  <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
-                  <span className="text-xs sm:text-sm font-medium">Phantom</span>
-                </Button>
+                       {/* Phantom */}
+                       <Button
+                         onClick={() => {
+                           console.log('Phantom button clicked');
+                           const connector = connectors.find(c => c.id === 'phantom' || c.name.toLowerCase().includes('phantom'));
+                           console.log('Found connector:', connector?.name);
+                           if (connector) {
+                             setUserInitiatedConnection(true);
+                             setPendingConnection(true);
+                             console.log('Calling connect...');
+                             connect({ connector, chainId: mainnet.id });
+                           } else {
+                             toast({
+                               title: "Phantom Not Found",
+                               description: "Please install Phantom to continue.",
+                               variant: "destructive",
+                             });
+                           }
+                         }}
+                         disabled={isPending || isConnecting}
+                         className="flex flex-col items-center gap-2 h-auto py-4 px-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+                       >
+                         <img src="/phantom.jpg" alt="Phantom" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover" />
+                         <span className="text-xs sm:text-sm font-medium">Phantom</span>
+                       </Button>
 
                 {/* Rabby */}
                 <Button
