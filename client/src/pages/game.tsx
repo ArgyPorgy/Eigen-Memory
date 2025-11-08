@@ -133,12 +133,32 @@ export default function Game() {
   const [finalScore, setFinalScore] = useState(0);
   const [finalBonus, setFinalBonus] = useState(0);
   const [finalTotal, setFinalTotal] = useState(0);
+  const [gameId, setGameId] = useState<string | null>(null);
   
   const { disconnect } = useDisconnect();
 
+  // Start game session
+  const startGameSession = useCallback(async () => {
+    try {
+      const response = await apiRequest("POST", "/api/games/start", {});
+      const data = await response.json();
+      setGameId(data.gameId);
+      return data.gameId as string;
+    } catch (error) {
+      console.error("Failed to start game session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start game session. Please try again.",
+        variant: "destructive",
+      });
+      setGameId(null);
+      return null;
+    }
+  }, [toast]);
+
   // Save game mutation
   const saveGameMutation = useMutation({
-    mutationFn: async (gameData: InsertGame) => {
+    mutationFn: async (gameData: InsertGame & { gameId: string }) => {
       return await apiRequest("POST", "/api/games", gameData);
     },
     onSuccess: () => {
@@ -148,6 +168,7 @@ export default function Game() {
         queryClient.invalidateQueries({ queryKey: [`/api/profile/${user.id}/stats`] });
         queryClient.invalidateQueries({ queryKey: [`/api/profile/${user.id}/games`] });
       }
+      setGameId(null);
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -170,7 +191,13 @@ export default function Game() {
   });
 
   // Initialize game
-  const initializeGame = useCallback(() => {
+  const initializeGame = useCallback(async () => {
+    // Start a new game session on the server
+    const newGameId = await startGameSession();
+    if (!newGameId) {
+      return;
+    }
+    
     // Create pairs of tiles with stable indices
     const symbolPairs = [
       ...SYMBOLS.map((symbol, index) => ({ symbol, symbolIndex: index })),
@@ -195,7 +222,7 @@ export default function Game() {
     setIsGameOver(false);
     setIsGameWon(false);
     setShowWinDialog(false);
-  }, []);
+  }, [startGameSession]);
 
   // Fire an extra celebratory pop right when the congrats card appears
   useEffect(() => {
@@ -356,7 +383,7 @@ export default function Game() {
     }, 250);
 
     // Save game result
-    if (user) {
+    if (user && gameId) {
       saveGameMutation.mutate({
         userId: user.id,
         score: finalScore,
@@ -364,6 +391,14 @@ export default function Game() {
         totalPoints,
         timeRemaining,
         matchesFound: finalMatches,
+        gameId,
+      });
+    } else if (user && !gameId) {
+      console.error("No game session ID available");
+      toast({
+        title: "Error",
+        description: "Game session expired. Score not saved.",
+        variant: "destructive",
       });
     }
 

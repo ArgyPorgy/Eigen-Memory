@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, User, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import type { LeaderboardEntry } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -33,9 +34,16 @@ export default function Leaderboard() {
     return null;
   };
 
+  const showFarewell = true;
+
   return (
-    <div className="min-h-screen p-3 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-8">
+    <div className="relative min-h-screen p-3 sm:p-6">
+      <div
+        className={cn(
+          "max-w-4xl mx-auto space-y-4 sm:space-y-8 transition-all",
+          showFarewell ? "blur-md pointer-events-none select-none" : ""
+        )}
+      >
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 sm:justify-between">
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -220,6 +228,19 @@ export default function Leaderboard() {
           </Card>
         )}
       </div>
+      {showFarewell && (
+        <div className="absolute inset-0 flex items-center justify-center px-4">
+          <div className="bg-black/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl p-8 sm:p-12 text-center space-y-4 max-w-xl">
+            <h1 className="text-3xl sm:text-5xl font-bold text-white">Thanks for playing!</h1>
+            <p className="text-base sm:text-lg text-white/80">
+              The leaderboard is now closed. We appreciate you being part of the game.
+            </p>
+            <p className="text-xs sm:text-sm text-white/60 uppercase tracking-[0.3em]">
+           
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,49 @@ const RATE_LIMIT_MAX = 100; // requests per window
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // Clean up every 5 minutes
 const MAX_MAP_SIZE = 5000; // Maximum entries before aggressive cleanup
 
+// Additional per-user submission safeguards for game results
+const GAME_DURATION_SECONDS = 90;
+const MIN_GAME_DURATION_SECONDS = 15; // Require at least 15 seconds of play
+const MAX_SCORE = 800;
+const MAX_MATCHES = 8;
+const USER_SUBMISSION_COOLDOWN_MS = 5 * 1000; // One submission every 5 seconds per user
+const userSubmissionTracker = new Map<string, number>();
+
+// Game session tracking to prevent console/script exploitation
+interface GameSession {
+  gameId: string;
+  userId: string;
+  startedAt: number;
+  ip: string;
+}
+
+const gameSessions = new Map<string, GameSession>();
+const SESSION_EXPIRY_MS = 150 * 1000; // 2.5 minutes max per game
+const MAX_ACTIVE_SESSIONS_PER_USER = 3; // Prevent session flooding
+const ipGameSubmissions = new Map<string, number[]>(); // Track submissions per IP
+const MAX_GAMES_PER_IP_PER_HOUR = 100; // Limit games per IP
+
+// Cleanup expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [gameId, session] of Array.from(gameSessions.entries())) {
+    if (now - session.startedAt > SESSION_EXPIRY_MS) {
+      gameSessions.delete(gameId);
+    }
+  }
+  
+  // Cleanup old IP tracking data
+  const oneHourAgo = now - 3600000;
+  for (const [ip, timestamps] of Array.from(ipGameSubmissions.entries())) {
+    const recent = timestamps.filter((t: number) => t > oneHourAgo);
+    if (recent.length === 0) {
+      ipGameSubmissions.delete(ip);
+    } else {
+      ipGameSubmissions.set(ip, recent);
+    }
+  }
+}, 60000); // Run every minute
+
 // Cleanup expired entries periodically
 let lastCleanup = Date.now();
 function cleanupExpiredEntries(force = false) {
@@ -77,10 +120,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Note: /api/auth/user endpoint is handled in walletAuth.ts
 
-  // Game routes
+  // Game session start - required before submitting a game
+  app.post("/api/games/start", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+      
+      // Check active sessions for this user
+      let userActiveSessions = 0;
+      for (const session of Array.from(gameSessions.values())) {
+        if (session.userId === userId) {
+          userActiveSessions++;
+        }
+      }
+      
+      if (userActiveSessions >= MAX_ACTIVE_SESSIONS_PER_USER) {
+        return res.status(429).json({
+          message: "Too many active game sessions. Please complete your current games first.",
+        });
+      }
+      
+      // Generate unique game session
+      const gameId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const session: GameSession = {
+        gameId,
+        userId,
+        startedAt: Date.now(),
+        ip,
+      };
+      
+      gameSessions.set(gameId, session);
+      
+      res.json({ 
+        gameId,
+        expiresAt: session.startedAt + SESSION_EXPIRY_MS,
+      });
+    } catch (error) {
+      console.error("Error starting game session:", error);
+      res.status(500).json({ message: "Failed to start game session" });
+    }
+  });
+
+  // Game submission - now requires valid game session
   app.post("/api/games", isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
+      const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+      const { gameId } = req.body;
+      
+      // CRITICAL: Verify game session exists and belongs to this user
+      if (!gameId) {
+        return res.status(400).json({
+          message: "Missing game session ID. Please start a new game.",
+        });
+      }
+      
+      const session = gameSessions.get(gameId);
+      if (!session) {
+        return res.status(400).json({
+          message: "Invalid or expired game session. Please start a new game.",
+        });
+      }
+      
+      if (session.userId !== userId) {
+        return res.status(403).json({
+          message: "Game session does not belong to you.",
+        });
+      }
+      
+      // Verify actual elapsed time from server-side session start
+      const now = Date.now();
+      const actualElapsedSeconds = (now - session.startedAt) / 1000;
+      
+      if (actualElapsedSeconds < MIN_GAME_DURATION_SECONDS) {
+        return res.status(400).json({
+          message: `Game completed too quickly. Minimum ${MIN_GAME_DURATION_SECONDS}s required.`,
+        });
+      }
+      
+      if (actualElapsedSeconds > SESSION_EXPIRY_MS / 1000) {
+        gameSessions.delete(gameId);
+        return res.status(400).json({
+          message: "Game session expired. Please start a new game.",
+        });
+      }
+      
+      // IP-based rate limiting
+      const ipSubmissions = ipGameSubmissions.get(ip) || [];
+      const oneHourAgo = now - 3600000;
+      const recentIpSubmissions = ipSubmissions.filter(t => t > oneHourAgo);
+      
+      if (recentIpSubmissions.length >= MAX_GAMES_PER_IP_PER_HOUR) {
+        return res.status(429).json({
+          message: "Too many games submitted from this IP address. Please try again later.",
+        });
+      }
+      
+      // Per-user cooldown to prevent rapid-fire submissions
+      const lastSubmission = userSubmissionTracker.get(userId);
+      if (lastSubmission && now - lastSubmission < USER_SUBMISSION_COOLDOWN_MS) {
+        const retryAfter = Math.ceil((USER_SUBMISSION_COOLDOWN_MS - (now - lastSubmission)) / 1000);
+        return res.status(429).json({
+          message: `Please wait ${retryAfter}s before submitting another game.`,
+        });
+      }
       
       // Validate request body
       const validationResult = insertGameSchema.safeParse({
@@ -96,7 +239,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const game = await storage.createGame(validationResult.data);
+      const data = validationResult.data;
+
+      // Clamp incoming values to expected ranges
+      const reportedTimeRemaining = Math.max(0, Math.min(GAME_DURATION_SECONDS, data.timeRemaining ?? GAME_DURATION_SECONDS));
+      const sanitizedMatches = Math.max(0, Math.min(MAX_MATCHES, data.matchesFound ?? 0));
+
+      // Prefer server-calculated time remaining to prevent tampering
+      const serverTimeRemaining = Math.max(0, Math.min(GAME_DURATION_SECONDS, GAME_DURATION_SECONDS - Math.round(actualElapsedSeconds)));
+      const sanitizedTimeRemaining = Math.min(serverTimeRemaining, reportedTimeRemaining);
+
+      const maxScoreFromMatches = sanitizedMatches * 100;
+      const sanitizedScore = Math.max(0, Math.min(MAX_SCORE, maxScoreFromMatches, data.score ?? 0));
+
+      const bonus = sanitizedTimeRemaining * 10;
+      const totalPoints = sanitizedScore + bonus;
+
+      const game = await storage.createGame({
+        ...data,
+        userId,
+        score: sanitizedScore,
+        bonus,
+        totalPoints,
+        timeRemaining: sanitizedTimeRemaining,
+        matchesFound: sanitizedMatches,
+      });
+
+      // Delete the session (one-time use)
+      gameSessions.delete(gameId);
+      
+      // Update tracking
+      userSubmissionTracker.set(userId, now);
+      recentIpSubmissions.push(now);
+      ipGameSubmissions.set(ip, recentIpSubmissions);
+      
       res.status(201).json(game);
     } catch (error) {
       console.error("Error creating game:", error);
